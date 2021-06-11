@@ -34,5 +34,7 @@ class svr_controller():
         self.circuit = dss.Circuit
         self.svr_list = dss.RegControls.AllNames() #List of all the step voltage regulators.
 
-        self.svr_curr
+        self.svr_curr = ""
         self.total_svrs = len(self.svr_list)
+
+    def import_model(self):
