@@ -41,6 +41,7 @@ class svr_controller():
 
 
         # New Line
+        new test case
 
     def new_function(self):
         #Added to the New Function
