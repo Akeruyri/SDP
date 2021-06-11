@@ -38,6 +38,5 @@ class svr_controller():
         self.total_svrs = len(self.svr_list)
 
     def import_model(self):
-
         #Test test test
         #Pull Request test
