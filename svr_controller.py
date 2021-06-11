@@ -42,3 +42,4 @@ class svr_controller():
         #Pull Request test
 
     def new_function(self):
+        #Added to the New Function
