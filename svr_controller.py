@@ -16,6 +16,10 @@
 # Should reg devices be controlled individually or in cases where they are banked control all three,
 # or even from the RL evaluation should it control all regulators in the system per step
 
+import opendssdirect as dss
+from opendssdirect.utils import run_command
+import numpy as np
+
 class svr_controller():
 
     # This controller needs to have a function that takes in the name of the RegControl Object in order to
@@ -26,7 +30,9 @@ class svr_controller():
 
     #Constructor Method
     def __init__(self):
+        # When starting up, the controller needs access to information from the circuit
+        self.circuit = dss.Circuit
+        self.svr_list = dss.RegControls.AllNames() #List of all the step voltage regulators.
 
-
-
-
+        self.svr_curr
+        self.total_svrs = len(self.svr_list)
