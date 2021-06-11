@@ -42,3 +42,4 @@ class svr_controller():
         #double edit test
 
     def new_function(self):
+        #Added to the New Function
