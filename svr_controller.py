@@ -50,7 +50,7 @@ class svr_controller():
         self.Transformer_losses = np.zeros((self.data_pts,), dtype=complex)
 
     def load_circuit_model(self,path):
-        dss.run_command('compile' + path) # This will be done in the environment, this here just so the controller loads the model for now.
+        dss.run_command('compile ' + path) # This will be done in the environment, this here just so the controller loads the model for now.
 
     def loadshape_to_tap(self): #Simple way, a more advanced method can be developed later
         mult_unscaled = dss.LoadShape.PMult() #pull list of multipliers
