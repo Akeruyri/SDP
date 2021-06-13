@@ -28,7 +28,6 @@ class svr_controller():
     # This can be modeled after the SwitchAction function from the Switching
     # THis needs to work without reference to a specific name of anything in the model import
 
-
     #Constructor Method
     def __init__(self):
         # When starting up, the controller needs access to information from the circuit
@@ -41,11 +40,6 @@ class svr_controller():
         #Create Tap List from Loadshape
         self.tap_scale = dss.LoadShape.HrInterval() # Returns the interval between each loadshape points in hrs
         self.total_time = self.tap_scale * self.tap_length #Length of the loadshape in hours
-
-
-        self.svr_curr = ""
-
-
 
     def load_circuit_model(self,path):
         dss.run_command('compile' + path) # This will be done in the environment, this here just so the controller loads the model for now.
