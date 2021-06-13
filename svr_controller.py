@@ -19,6 +19,7 @@
 import opendssdirect as dss
 from opendssdirect.utils import run_command
 import numpy as np
+import math
 
 class svr_controller():
 
@@ -31,10 +32,29 @@ class svr_controller():
     #Constructor Method
     def __init__(self):
         # When starting up, the controller needs access to information from the circuit
-        self.circuit = dss.Circuit
+        dss.LoadShape.First()  # Sets first loadshape as active loadshape
         self.svr_list = dss.RegControls.AllNames() #List of all the step voltage regulators.
+        self.total_svrs = len(self.svr_list)
+        self.tap_length = dss.LoadShape.Npts() # A tap change may occur on each loadshape interval
+        self.tap_list = np.array((self.total_svrs,self.tap_length),dtype=int)  # Store a 2D array that will hold all of our tap changes for each SVR
+
+        #Create Tap List from Loadshape
+        self.tap_scale = dss.LoadShape.HrInterval() # Returns the interval between each loadshape points in hrs
+        self.total_time = self.tap_scale * self.tap_length #Length of the loadshape in hours
+
 
         self.svr_curr = ""
-        self.total_svrs = len(self.svr_list)
 
-    def import_model(self):
+
+
+    def load_circuit_model(self,path):
+        dss.run_command('compile' + path) # This will be done in the environment, this here just so the controller loads the model for now.
+
+    def loadshape_to_tap(self): #Simple way, a more advanced method can be developed later
+        mult_unscaled = dss.LoadShape.PMult() #pull list of multipliers
+        multipliers = np.interp(mult_unscaled, (mult_unscaled.min(),mult_unscaled.max()),(-16,16)) #Range them to the taps.
+        for each in range(multipliers):
+            multipliers[each] = math.trunc(multipliers[each]) # Truncate the tap values
+        for svr in range(self.total_svrs):
+            for tap in range(multipliers):
+                self.tap_list[svr][tap] = multipliers[tap] # Assign the taps. All SVRs will run off the same tap for now.
