@@ -62,4 +62,3 @@ class svr_controller():
                 self.tap_list[svr][tap] = multipliers[tap] # Assign the taps. All SVRs will run off the same tap for now.
 
     def record_losses(self):
-
