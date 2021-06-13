@@ -26,9 +26,8 @@ class svr_controller():
     # This controller needs to have a function that takes in the name of the RegControl Object in order to
     # perform tap changes on it.
     # This can be modeled after the SwitchAction function from the Switching
-    # THis needs to work without reference to a specific name of anything in the model import
+    # THis needs to work without reference to a specific name of anything in the model
 
-    #Constructor Method
     def __init__(self, path):
         self.load_circuit_model(self, path) # Instantiate the dss Object.
         dss.LoadShape.First()  # Sets first loadshape as active loadshape
@@ -36,22 +35,24 @@ class svr_controller():
         # When starting up, the controller needs access to information from the circuit
         self.svr_list = dss.RegControls.AllNames() # List of all the step voltage regulators.
         self.total_svrs = dss.RegControls.Count() # Total number of svrs in the system.
-        self.data_pts = dss.LoadShape.Npts() # A tap change may occur on each loadshape interval
+        self.total_timestep = dss.LoadShape.Npts() # A tap change may occur on each loadshape interval
 
-        self.tap_list = np.array((self.total_svrs,self.data_pts),dtype=int)  # Store a 2D array that will hold all of our tap changes for each SVR
+        self.tap_list = np.array((self.total_svrs,self.total_timestep),dtype=int)  # Store a 2D array that will hold all of our tap changes for each SVR
 
         #Create Tap List from Loadshape
         self.tap_scale = dss.LoadShape.HrInterval() # Returns the interval between each loadshape points in hrs
-        self.total_time = self.tap_scale * self.data_pts #Length of the loadshape in hours
+        self.total_time = self.tap_scale * self.total_timestep #Length of the loadshape in hours
 
         #Loss information
-        self.System_losses = np.zeros((self.data_pts,), dtype=complex)
-        self.Line_losses = np.zeros((self.data_pts,), dtype=complex)
-        self.Transformer_losses = np.zeros((self.data_pts,), dtype=complex)
+        self.system_losses = np.zeros((self.total_timestep,), dtype=complex)
+        self.line_losses = np.zeros((self.total_timestep,), dtype=complex)
+        self.transformer_losses = np.zeros((self.total_timestep,), dtype=complex)
 
+    #Setup Functions
     def load_circuit_model(self,path):
         dss.run_command('compile ' + path) # This will be done in the environment, this here just so the controller loads the model for now.
 
+    #This method is a simple implementation.
     def loadshape_to_tap(self): #Simple way, a more advanced method can be developed later
         mult_unscaled = dss.LoadShape.PMult() #pull list of multipliers
         multipliers = np.interp(mult_unscaled, (mult_unscaled.min(),mult_unscaled.max()),(-16,16)) #Range them to the taps.
@@ -61,4 +62,12 @@ class svr_controller():
             for tap in range(multipliers):
                 self.tap_list[svr][tap] = multipliers[tap] # Assign the taps. All SVRs will run off the same tap for now.
 
-    def record_losses(self):
+    def switch_taps(self, timestep):
+        for reg in range(self.total_svrs):
+            dss.RegControls.Name(self.svr_list[reg]) #Set active SVR
+            dss.RegControls.TapNumber(self.tap_list[reg][timestep]) #Attempt a tap change.
+    
+    def record_losses(self, timestep):
+        self.system_losses[timestep] = dss.Circuit.Losses()[0] + dss.Circuit.Losses()[1] * 1j
+        self.line_losses[timestep] = dss.Circuit.LineLosses()[0] + dss.Circuit.LineLosses()[1] * 1j
+        self.transformer_losses[timestep] = (dss.Circuit.Losses()[0] - dss.Circuit.LineLosses()[0]) + ((dss.Circuit.Losses()[1] * 1j) - (dss.Circuit.LineLosses()[1] * 1j))
