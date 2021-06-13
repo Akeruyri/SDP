@@ -29,17 +29,25 @@ class svr_controller():
     # THis needs to work without reference to a specific name of anything in the model import
 
     #Constructor Method
-    def __init__(self):
-        # When starting up, the controller needs access to information from the circuit
+    def __init__(self, path):
+        self.load_circuit_model(self, path) # Instantiate the dss Object.
         dss.LoadShape.First()  # Sets first loadshape as active loadshape
-        self.svr_list = dss.RegControls.AllNames() #List of all the step voltage regulators.
-        self.total_svrs = len(self.svr_list)
-        self.tap_length = dss.LoadShape.Npts() # A tap change may occur on each loadshape interval
-        self.tap_list = np.array((self.total_svrs,self.tap_length),dtype=int)  # Store a 2D array that will hold all of our tap changes for each SVR
+
+        # When starting up, the controller needs access to information from the circuit
+        self.svr_list = dss.RegControls.AllNames() # List of all the step voltage regulators.
+        self.total_svrs = dss.RegControls.Count() # Total number of svrs in the system.
+        self.data_pts = dss.LoadShape.Npts() # A tap change may occur on each loadshape interval
+
+        self.tap_list = np.array((self.total_svrs,self.data_pts),dtype=int)  # Store a 2D array that will hold all of our tap changes for each SVR
 
         #Create Tap List from Loadshape
         self.tap_scale = dss.LoadShape.HrInterval() # Returns the interval between each loadshape points in hrs
-        self.total_time = self.tap_scale * self.tap_length #Length of the loadshape in hours
+        self.total_time = self.tap_scale * self.data_pts #Length of the loadshape in hours
+
+        #Loss information
+        self.System_losses = np.zeros((self.data_pts,), dtype=complex)
+        self.Line_losses = np.zeros((self.data_pts,), dtype=complex)
+        self.Transformer_losses = np.zeros((self.data_pts,), dtype=complex)
 
     def load_circuit_model(self,path):
         dss.run_command('compile' + path) # This will be done in the environment, this here just so the controller loads the model for now.
@@ -52,3 +60,6 @@ class svr_controller():
         for svr in range(self.total_svrs):
             for tap in range(multipliers):
                 self.tap_list[svr][tap] = multipliers[tap] # Assign the taps. All SVRs will run off the same tap for now.
+
+    def record_losses(self):
+
