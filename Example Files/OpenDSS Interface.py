@@ -7,7 +7,12 @@ nt = 24 #hours in a day
 random.seed()
 
 #Get our DSS Object running.
-dss.run_command(r'compile "C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\13Bus\MasterIEEE13.dss"')
+####Louis Path
+#dss.run_command(r'compile "C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\13Bus\MasterIEEE13.dss"')
+
+####David Path
+dss.run_command(r'compile "C:\Users\david\OneDrive\Desktop\EE_415\Open Dss\13bus system\13Bus\MasterIEEE13.dss"')
+
 
 #Preliminary Commands
 dss.run_command('')
@@ -46,8 +51,10 @@ Transformer_losses = np.zeros((nt,),dtype=complex)
 
 for hour in range(nt):
     for reg in range(len(Regulator_List)):
+
         dss.RegControls.Name(Regulator_List[reg]) #Set Active Regulator
         dss.RegControls.TapNumber(Reg_Taps[reg][hour]) #Set Tap to repsective value
+
     dss.run_command('solve') #Run current state
 
     #Get Bus Voltages
