@@ -14,4 +14,8 @@ dss.run_command('set hour=0')
 
 #Get list of Regulators
 
-#
+
+#Run Daily Load Flow
+
+
+#Summarize Loss
