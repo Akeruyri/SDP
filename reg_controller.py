@@ -17,7 +17,6 @@
 # or even from the RL evaluation should it control all regulators in the system per step
 
 import opendssdirect as dss
-from opendssdirect.utils import run_command
 import numpy as np
 import math
 
@@ -28,13 +27,13 @@ class reg_controller():
     # This can be modeled after the SwitchAction function from the Switching
     # THis needs to work without reference to a specific name of anything in the model
 
-    def __init__(self, name, path):
-        self.load_circuit_model(self,path) # Instantiate the dss Object.
+    def __init__(self, name):
+        self.reg_name = name
 
         # When starting up, the controller needs access to information from the circuit
         dss.LoadShape.First()  # Sets first loadshape as active loadshape
         self.total_timesteps = dss.LoadShape.Npts()  # A tap change may occur on each loadshape interval
-        self.reg_name = name
+
         self.tap_scale = dss.LoadShape.HrInterval()  # Returns the interval between each loadshape points in hrs
         self.total_time = self.tap_scale * self.total_timesteps  # Length of the loadshape in hours
         self.tap_list = np.zeros((self.total_timesteps,),dtype=int)  # Store a 2D array that will hold all of our tap changes for each SVR
@@ -46,10 +45,6 @@ class reg_controller():
         self.system_losses = np.zeros((self.total_timesteps,), dtype=complex)
         self.line_losses = np.zeros((self.total_timesteps,), dtype=complex)
         self.transformer_losses = np.zeros((self.total_timesteps,), dtype=complex)
-
-    #Setup Functions
-    def load_circuit_model(self,path):
-        dss.run_command('compile ' + path) # This will be done in the environment, this here just so the controller loads the model for now.
 
     #This method is a simple implementation.
     def loadshape_to_tap(self): #Simple way, a more advanced method can be developed later
@@ -65,7 +60,7 @@ class reg_controller():
         dss.RegControls.Name(self.reg_name) #Set active SVR
         dss.RegControls.TapNumber(self.tap_list[timestep]) #Attempt a tap change.
     
-    def record_losses(self, timestep):
+    def get_losses(self, timestep):
         self.system_losses[timestep] = dss.Circuit.Losses()[0] + dss.Circuit.Losses()[1] * 1j
         self.line_losses[timestep] = dss.Circuit.LineLosses()[0] + dss.Circuit.LineLosses()[1] * 1j
         self.transformer_losses[timestep] = (dss.Circuit.Losses()[0] - dss.Circuit.LineLosses()[0]) + ((dss.Circuit.Losses()[1] * 1j) - (dss.Circuit.LineLosses()[1] * 1j))
