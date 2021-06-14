@@ -51,8 +51,8 @@ class reg_controller():
         self.tap_scale = dss.LoadShape.HrInterval()  # Returns the interval between each loadshape points in hrs
         self.total_time = self.tap_scale * self.total_timesteps  # Length of the loadshape in hours
         mult_unscaled = dss.LoadShape.PMult() #pull list of multipliers
-        multipliers = np.interp(mult_unscaled, (mult_unscaled.min(),mult_unscaled.max()),(-16,16)) #Range them to the taps.
-        for each in range(multipliers):
+        multipliers = np.interp(mult_unscaled, (min(mult_unscaled),max(mult_unscaled)),(-16,16)) #Range them to the taps.
+        for each in range(multipliers.size):
             multipliers[each] = math.trunc(multipliers[each])  # Truncate the tap values
             self.tap_list[each] = multipliers[each] # Assign the taps. All SVRs will run off the same tap for now.
 
