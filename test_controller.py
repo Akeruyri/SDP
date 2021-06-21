@@ -2,7 +2,6 @@ from reg_controller import reg_controller
 import opendssdirect as dss
 import numpy as np
 
-
 #Load in the model
 dss.run_command(r'compile "C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"')
 dss.run_command('')
