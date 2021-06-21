@@ -10,11 +10,9 @@ class reg_env (gym.Env):
     def __init__(self, path):
         dss.Basic.ClearAll()
         #DSS Simulation Variables and Setup
-
         dss.run_command('Compile "' + path + '"')
         dss.run_command("set mode=daily stepsize=1h number=1")
         dss.run_command("set hour = 0")
-
 
         #Import Regulators and generate action list
         self.regulator_list = dss.RegControls.AllNames()
