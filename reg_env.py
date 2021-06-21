@@ -8,8 +8,13 @@ from gym import spaces
 class reg_env (gym.Env):
 
     def __init__(self):
-        #DSS Simulation Variables and Setup
         dss.Basic.ClearAll()
+        #DSS Simulation Variables and Setup
+        path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+        dss.run_command('Compile "' + path + '"')
+        dss.run_command("set mode=daily stepsize=1h number=1")
+        dss.run_command("set hour = 0")
+
 
         #Import Regulators and generate action list
         self.regulator_list = dss.RegControls.AllNames()
@@ -42,7 +47,7 @@ class reg_env (gym.Env):
         reg = math.floor(act_num/33)
         return self.regulator_list[reg]
 
-    def tap_from_action(act_num):
+    def tap_from_action(self, act_num):
         if act_num % 33 == 0: #If Action is "No Action"
             return 0
         elif (act_num % 33) > 0 and (act_num % 33) <= 16: #If Action is "1 to 16"
