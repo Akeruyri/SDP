@@ -41,7 +41,8 @@ class reg_env (gym.Env):
         return
 
     def losses(self):
-        return
+        lineloss = dss.Circuit.LineLosses()
+        return lineloss
 
     def reg_from_action(self, act_num):
         reg = math.floor(act_num/33)

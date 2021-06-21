@@ -15,7 +15,10 @@ class rlEnv(gym.Env):
     def __init__(self):
 
         #DSS Simulation Variables, This runs off the 123 Bus system which has 9 switches
-        self.case_path = r'C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss' # r'..\cases\34Bus\ieee34Mod2.dss'
+        ###Louis Path
+        #self.case_path = r'C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss' # r'..\cases\34Bus\ieee34Mod2.dss'
+        ###David Path
+        self.case_path = r'C:\Users\david\PycharmProjects\pythonProject3\IEEE123MasterSW.dss'  # r'..\cases\34Bus\ieee34Mod2.dss'
         self.dssCircuit = dss.Circuit
         self.dssElem = dss.CktElement
         self.dssBus = dss.Bus
