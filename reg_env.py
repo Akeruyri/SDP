@@ -7,10 +7,10 @@ from gym import spaces
 
 class reg_env (gym.Env):
 
-    def __init__(self):
+    def __init__(self, path):
         dss.Basic.ClearAll()
         #DSS Simulation Variables and Setup
-        path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+
         dss.run_command('Compile "' + path + '"')
         dss.run_command("set mode=daily stepsize=1h number=1")
         dss.run_command("set hour = 0")
