@@ -16,8 +16,8 @@ class reg_env (gym.Env):
         #Import Regulators, Generate Action and State Lists
         self.regulator_list = dss.RegControls.AllNames()
         self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0) 
-        
-        #INCOMPLETE NEEDS WORK - THIS IS WHAT SHOULD STORE OUR REG_CONTROLLER OBJECTS
+
+        #INCOMPLETE NEEDS WORK - THIS IS WHAT SHOULD STORE OUR REG OBJECTS
         self.state_list = 0
 
         #DQN Parameters
