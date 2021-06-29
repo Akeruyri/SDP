@@ -1,3 +1,4 @@
+from regulator import regulator
 import opendssdirect as dss
 import numpy as np
 import math
@@ -13,18 +14,28 @@ class reg_env (gym.Env):
         dss.Text.Command("set mode=daily stepsize=1h number=1")
         dss.Text.Command("set hour = 0")
 
-        #Import Regulators, Generate Action and State Lists
+        #Import Regulators and Generate Action List
         self.regulator_list = dss.RegControls.AllNames()
         self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0) 
-
-        #INCOMPLETE NEEDS WORK - THIS IS WHAT SHOULD STORE OUR REG OBJECTS
-        self.state_list = 0
-
+        self.regulator_size = len(self.regulator_list)
+        
+        #Setup Current State of System, Keeps track of current tap of each regulator
+        self.system_state = []
+        for reg in range(regulator_size):
+            dss.RegControls.Name(self.reregulator_list[reg])
+            system_state.append(regulator(self.regulator_list[reg],dss.RegControls.TapNumber()))
+        
+        #Potential Variables to Track and use in Observation
+        #   1. Current Loadshape P and Q level
+        #   2. Node Voltages, either all or a selection. (This one would be more comprable to real life)
+       
         #DQN Parameters
         self.bufferSize = 2048
+        self.Reward = 0
         self.done = False
         self.action_space = spaces.Discrete(self.action_list) #Action spaced defined as a discrete list of each tap change actions, rather than multiple actions per step for simplicity
-        self.observation_space = spaces.Box() # INCOMPLETE NEEDS DISCUSSION
+        self.observation_space = spaces.Box(low=-16.0, shape=(), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
+        
 
     def step(self, action):
         
@@ -74,3 +85,5 @@ class reg_env (gym.Env):
             return act_num % 33
         else: # If Action is "-1 to -16"
             return -((act_num % 33) - 16)
+
+    
