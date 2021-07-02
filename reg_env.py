@@ -21,9 +21,9 @@ class reg_env (gym.Env):
         
         #Setup Current State of System, Keeps track of current tap of each regulator
         self.system_state = []
-        for reg in range(regulator_size):
+        for reg in range(self.regulator_size):
             dss.RegControls.Name(self.reregulator_list[reg])
-            system_state.append(regulator(self.regulator_list[reg],dss.RegControls.TapNumber()))
+            self.system_state.append(regulator(self.regulator_list[reg],dss.RegControls.TapNumber()))
         
         #Potential Variables to Track and use in Observation
         #   1. Current Loadshape P and Q level
@@ -64,21 +64,21 @@ class reg_env (gym.Env):
         return self.regulator_list[reg] #Returns name of regulator
 
     #Other Functions
-    def Reward(losses): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
+    def Reward(self, losses): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
         return 1/losses 
    
-    def switch_taps(action_num):
-        tap_num = tap_from_action(action_num)
+    def switch_taps(self, action_num):
+        tap_num = self.tap_from_action(action_num)
         if tap_num == 0:
             return
         else:
             dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
         return
     
-    def losses():
+    def losses(self):
         return sum(dss.Circuit.LineLosses()) #All System Line Losses, used for reward. 
 
-    def tap_from_action(act_num):
+    def tap_from_action(self, act_num):
         if act_num % 33 == 0: #If Action is "No Action"
             return 0
         elif (act_num % 33) > 0 and (act_num % 33) <= 16: #If Action is "1 to 16"
