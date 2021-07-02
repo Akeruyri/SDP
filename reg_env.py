@@ -11,24 +11,27 @@ class reg_env (gym.Env):
         dss.Basic.ClearAll()
         #DSS Simulation Variables and Setup
         dss.Text.Command('Compile "' + path + '"')
-        dss.Text.Command("set mode=daily stepsize=1h number=1")
-        dss.Text.Command("set hour = 0")
+        dss.Text.Command("set mode=daily stepsize=5m number=1")
+        #dss.Text.Command("set hour = 0")
 
+        #Action Space Setup
         #Import Regulators and Generate Action List
-        self.regulator_list = dss.RegControls.AllNames()
-        self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0) 
-        self.regulator_size = len(self.regulator_list)
-        
-        #Setup Current State of System, Keeps track of current tap of each regulator
-        self.system_state = []
+        self.reg_names = dss.RegControls.AllNames()
+        self.regulator_size = len(self.reg_names)
+        self.action_list = (len(self.reg_names) * 33) #33 actions for each regulator * num of regulators (+-16 and 0)
+
+        #Observation Space Setup
+        # 1. Setup Initial State of System, Keeps track of current tap of each regulator
+        self.reg_list = [] #Store current regulator list
         for reg in range(self.regulator_size):
-            dss.RegControls.Name(self.reregulator_list[reg])
-            self.system_state.append(regulator(self.regulator_list[reg],dss.RegControls.TapNumber()))
+            dss.RegControls.Name(self.reg_names[reg]) #Set Active Reg to pull tap information
+            self.reg_list.append(regulator(self.reg_names[reg],dss.RegControls.TapNumber())) #Append Name and Tap
         
-        #Potential Variables to Track and use in Observation
-        #   1. Current Loadshape P and Q level
-        #   2. Node Voltages, either all or a selection. (This one would be more comprable to real life)
-       
+        # 2. Node Voltages
+        self.volt_list = [] #Store list of
+
+
+
         #DQN Parameters
         self.bufferSize = 2048
         self.Reward = 0
@@ -58,12 +61,16 @@ class reg_env (gym.Env):
         dss.Basic.ClearAll()
         return
 
-    #Class Specific Functions
+    #Class Functions
+    def get_reg_state(self): #Update Current Regulator Tap positions
+        for reg in range(self.regulator_size):
+            dss.RegControls.Name(self.reg_list[reg].reg_name) #Set Active Regulator
+            self.reg_list[reg].reg_tap_num = dss.RegControls.TapNumber() #Get its Tap Number
+    
     def reg_from_action(self, act_num):
         reg = math.floor(act_num/33)
-        return self.regulator_list[reg] #Returns name of regulator
+        return self.reg_names[reg] #Returns name of regulator
 
-    #Other Functions
     def Reward(self, losses): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
         return 1/losses 
    
@@ -75,8 +82,10 @@ class reg_env (gym.Env):
             dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
         return
     
-    def losses(self):
-        return sum(dss.Circuit.LineLosses()) #All System Line Losses, used for reward. 
+    def losses(self): #Return SUM of all losses in the system
+        #Find Magnitude, use Numpy SUM
+
+        return dss.Circuit.LineLosses() #All System Line Losses, used for reward.
 
     def tap_from_action(self, act_num):
         if act_num % 33 == 0: #If Action is "No Action"
