@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Example Files"
   ],
-  "SelectedNode": "\\reg_env.py",
+  "SelectedNode": "\\test_controller.py",
   "PreviewInSolutionExplorer": false
 }
