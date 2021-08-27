@@ -8,12 +8,16 @@ import gym
 ###Louis Path
 #path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
 ###David Path
-path = r"C:\Users\david\PycharmProjects\pythonProject3\IEEE123MasterSW.dss"
+path = r"D:\Program Files\OpenDSS\IEEETestCases\123Bus\IEEE123Master.dss"
 env = reg_env(path)
 
-for each in range(200):
-    print(env.tap_from_action(each))
+#for each in range(200):
+ #   print(env.tap_from_action(each))
+
+print(env.losses())
+
+env.switch_taps(-5)
 
 
-print(dss.Circuit.LineLosses())
-print(env.lineloss)
+print(env.losses())
+#change test

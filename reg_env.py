@@ -16,29 +16,29 @@ class reg_env (gym.Env):
 
         #Import Regulators and Generate Action List
         self.regulator_list = dss.RegControls.AllNames()
-        self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0) 
+        self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0)
         self.regulator_size = len(self.regulator_list)
-        
+
         #Setup Current State of System, Keeps track of current tap of each regulator
         self.system_state = []
         for reg in range(self.regulator_size):
-            dss.RegControls.Name(self.reregulator_list[reg])
+            dss.RegControls.Name(self.regulator_list[reg])
             self.system_state.append(regulator(self.regulator_list[reg],dss.RegControls.TapNumber()))
-        
+
         #Potential Variables to Track and use in Observation
         #   1. Current Loadshape P and Q level
         #   2. Node Voltages, either all or a selection. (This one would be more comprable to real life)
-       
+
         #DQN Parameters
         self.bufferSize = 2048
         self.Reward = 0
         self.done = False
         self.action_space = spaces.Discrete(self.action_list) #Action spaced defined as a discrete list of each tap change actions, rather than multiple actions per step for simplicity
-        self.observation_space = spaces.Box(low=-16.0, shape=(), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
-        
+        #self.observation_space = spaces.Box(low=-16.0, shape=(), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
+
 
     def step(self, action):
-        
+
         #Get regulator to apply action too, attempt tap change
         dss.RegControls.Name(self.reg_from_action(action))  # Set active SVR
         self.switch_taps(action) # Attempt tap change
@@ -65,25 +65,32 @@ class reg_env (gym.Env):
 
     #Other Functions
     def Reward(self, losses): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
-        return 1/losses 
-   
-    def switch_taps(self, action_num):
-        tap_num = self.tap_from_action(action_num)
-        if tap_num == 0:
-            return
-        else:
-            dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
+        return 1/losses
+
+    # def switch_taps(self, action_num):
+    #     tap_num = self.tap_from_action(action_num)
+    #     if tap_num == 0:
+    #         return
+    #     else:
+    #         dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
+    #     return
+
+    def switch_taps(self, num1):
+        dss.RegControls.TapNumber(num1)  # Attempt a tap change on Active Regulator
+
         return
-    
+
     def losses(self):
-        return sum(dss.Circuit.LineLosses()) #All System Line Losses, used for reward. 
+
+        #dss.transfomers.
+        return sum(dss.Circuit.LineLosses()) #All System Line Losses, used for reward.
+
 
     def tap_from_action(self, act_num):
+
         if act_num % 33 == 0: #If Action is "No Action"
             return 0
         elif (act_num % 33) > 0 and (act_num % 33) <= 16: #If Action is "1 to 16"
             return act_num % 33
         else: # If Action is "-1 to -16"
             return -((act_num % 33) - 16)
-
-    
