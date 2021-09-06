@@ -14,6 +14,8 @@ class reg_env (gym.Env):
         dss.Text.Command("set mode=daily stepsize=1h number=1")
         dss.Text.Command("set hour = 0")
 
+        dss.Text.Command("Solve")
+
         #Import Regulators and Generate Action List
         self.regulator_list = dss.RegControls.AllNames()
         self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0)
@@ -45,8 +47,8 @@ class reg_env (gym.Env):
 
         #Solve
         dss.Text.Command("Solve")
-
-        return temp_observation, reward, done, info
+        return
+        # return temp_observation, reward, done, info
 
     def reset(self):
         observation = self.step(0)
@@ -59,7 +61,10 @@ class reg_env (gym.Env):
         return
 
     #Class Specific Functions
+    #Adding IF statement breaks code
     def reg_from_action(self, act_num):
+        if act_num == 0:
+            return dss.RegControls.Name()
         reg = math.floor(act_num/33)
         return self.regulator_list[reg] #Returns name of regulator
 
@@ -67,22 +72,23 @@ class reg_env (gym.Env):
     def Reward(self, losses): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
         return 1/losses
 
-    # def switch_taps(self, action_num):
-    #     tap_num = self.tap_from_action(action_num)
-    #     if tap_num == 0:
-    #         return
-    #     else:
-    #         dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
-    #     return
-
-    def switch_taps(self, num1):
-        dss.RegControls.TapNumber(num1)  # Attempt a tap change on Active Regulator
-
+    def switch_taps(self, action_num):
+        tap_num = self.tap_from_action(action_num)
+        if tap_num == 0:
+            return
+        else:
+            dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
         return
+
+    # def switch_taps(self, num1):
+    #     dss.RegControls.TapNumber(num1)  # Attempt a tap change on Active Regulator
+    #
+    #     return
 
     def losses(self):
 
         #dss.transfomers.
+        print(dss.Circuit.LineLosses())
         return sum(dss.Circuit.LineLosses()) #All System Line Losses, used for reward.
 
 

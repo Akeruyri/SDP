@@ -14,10 +14,14 @@ env = reg_env(path)
 #for each in range(200):
  #   print(env.tap_from_action(each))
 
-print(env.losses())
+env.losses()
+env.step(0)
 
-env.switch_taps(-5)
+env.losses()
+env.step(10)
 
+env.losses()
+env.step(10)
 
-print(env.losses())
+env.losses()
 #change test
