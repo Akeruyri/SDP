@@ -1,4 +1,3 @@
-from regulator import regulator
 import opendssdirect as dss
 import numpy as np
 import math
@@ -13,6 +12,7 @@ class reg_env (gym.Env):
         #DSS Simulation Variables and Setup
         dss.Text.Command('Compile "' + self.path + '"')
         dss.Text.Command("set mode=daily stepsize=5m number=1")
+        dss.Text.Command("Solve")
         #dss.Text.Command("set hour = 0")
 
         #Action Space Setup
@@ -88,8 +88,14 @@ class reg_env (gym.Env):
         reg = math.floor(act_num/33)
         return self.reg_names[reg] #Returns name of regulator
 
-    def Reward(self, losses): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
-        return 1/losses 
+    def Reward(self): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
+
+        #To properly define reward we need to make a measurement of our target metric, being that all regulators need
+        #to ensure their target nodes are within 5% of the nominal voltage in the system.
+
+        vNom =
+
+        return reward
    
     def switch_taps(self, action_num):
         dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR
@@ -101,8 +107,7 @@ class reg_env (gym.Env):
         return
     
     def losses(self): #Return SUM of all losses in the system
-        #Find Magnitude, use Numpy SUM
-
+        print(dss.Circuit.LineLosses()) #Temp
         return dss.Circuit.LineLosses() #All System Line Losses, used for reward.
 
     def tap_from_action(self, act_num):
