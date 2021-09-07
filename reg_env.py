@@ -33,7 +33,7 @@ class reg_env (gym.Env):
         self.volt_size = len(self.volt_list)
 
         #Concatenate both list
-        self.obs_list = np.append(self.reg_list, self.volt_list)
+        self.obs_list = np.append(self.reg_tap_list, self.volt_list)
         self.obs_size = self.reg_size + self.volt_size
 
         #DQN Parameters
@@ -42,7 +42,7 @@ class reg_env (gym.Env):
         self.done = False
         #self.state = np.array(self.obs_list) # No sure about this
         self.action_space = spaces.Discrete(self.action_list) #Action spaced defined as a discrete list of each tap change actions, rather than multiple actions per step for simplicity
-        self.observation_space = spaces.Box(low=-16.0, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
+        self.observation_space = spaces.Box(low=-16.0, high=40000, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
         
     def step(self, action):
         #Regulator tap change
@@ -57,7 +57,8 @@ class reg_env (gym.Env):
         self.update_reg_state()
         self.update_volt_state()
         temp_observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
-        reward = self.Reward() # Get reward
+        reward = self.get_reward() # Get reward
+        done = True
         return temp_observation, reward, done, {"Info":self.reg_tap_list}
 
     def reset(self):
@@ -88,21 +89,26 @@ class reg_env (gym.Env):
         reg = math.floor(act_num/33)
         return self.reg_names[reg] #Returns name of regulator
 
-    def Reward(self): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
+
+    def get_reward(self): #The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
 
         #To properly define reward we need to make a measurement of our target metric, being that all regulators need
         #to ensure their target nodes are within 5% of the nominal voltage in the system.
-        vNom = dss.Vsources.BasekV()
 
         #Then we need to get the node voltages at each target note of our regulators
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) #Set Active Regulator
-
             dss.ActiveClass.Name(dss.RegControls.MonitoredBus()) #Set Active Bus based on Active Regulator
-            dss.Bus.v
+            voltage_pu = dss.Bus.PuVoltage()
+            print(voltage_pu)
+            for volt in range(math.floor(len(voltage_pu)/2)):
+                volt_mag = math.sqrt((voltage_pu[2*volt] * voltage_pu[2*volt])+(voltage_pu[(2*volt)+1] * voltage_pu[(2*volt)+1]))
+                print(volt_mag)
 
-        return reward
-   
+
+        return
+
+
     def switch_taps(self, action_num):
         dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR
         tap_num = self.tap_from_action(action_num)
