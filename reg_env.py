@@ -92,8 +92,14 @@ class reg_env (gym.Env):
 
         #To properly define reward we need to make a measurement of our target metric, being that all regulators need
         #to ensure their target nodes are within 5% of the nominal voltage in the system.
+        vNom = dss.Vsources.BasekV()
 
-        vNom =
+        #Then we need to get the node voltages at each target note of our regulators
+        for reg in range(self.reg_size):
+            dss.RegControls.Name(self.reg_names[reg]) #Set Active Regulator
+
+            dss.ActiveClass.Name(dss.RegControls.MonitoredBus()) #Set Active Bus based on Active Regulator
+            dss.Bus.v
 
         return reward
    
