@@ -33,7 +33,7 @@ class reg_env (gym.Env):
         self.volt_size = len(self.volt_list)
 
         # Concatenate both list
-        self.obs_list = np.append(self.reg_list, self.volt_list) # Observe current sate of regulators and system voltages
+        self.obs_list = np.append(self.reg_tap_list, self.volt_list) # Observe current sate of regulators and system voltages
         self.obs_size = self.reg_size + self.volt_size
 
         ### DQN Parameters ###
@@ -57,7 +57,7 @@ class reg_env (gym.Env):
         self.update_reg_state()
         self.update_volt_state()
         temp_observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
-        reward = self.Reward() # Get reward
+        reward = self.get_reward() # Get reward
         done = False
         return temp_observation, reward, done, {"Info":self.reg_tap_list}
 
@@ -89,7 +89,7 @@ class reg_env (gym.Env):
         reg = math.floor(act_num/33)
         return self.reg_names[reg] # Returns name of regulator
 
-    def Reward(self):
+    def get_reward(self):
         # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
 
         # To properly define reward we need to make a measurement of our target metric, being that all regulators need
@@ -100,9 +100,9 @@ class reg_env (gym.Env):
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Regulator
             dss.ActiveClass.Name(dss.RegControls.MonitoredBus()) # Set Active Bus based on Active Regulator's Monitored Bus <- This step may be wrong
-            voltages = dss.Bus.PuVoltage() # List of pu Voltages at Bus.
-            reward = list()
-            for i in range(voltages):
+            voltages = dss.Bus.PuVoltage() # List of pu Voltages at Bus. This should be 3 normally, but I'm not sure
+            reward = np.zeros(len(voltages)) # List of equal length to store the reward for this regulator's monitored bus.
+            for i in range(len(voltages)):
                 reward[i] = self.reward_curve(voltages[i])
             reward_reg = sum(reward)/len(reward) # average out the rewards for this regulator's monitored bus
             volt_reward += reward_reg # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
@@ -117,8 +117,8 @@ class reg_env (gym.Env):
 
         return total_reward
 
-    def losses(self): #Return SUM of all losses in the system
-        print(dss.Circuit.LineLosses()) #Temp
+    def losses(self): # Return SUM of all losses in the system
+        print(dss.Circuit.LineLosses())
         return dss.Circuit.LineLosses() #All System Line Losses, used for reward.
 
     def reward_curve(self, voltage_pu):
@@ -129,7 +129,7 @@ class reg_env (gym.Env):
         b = 100 # Right Skew
         x0 = 1  # Shift
         y0 = 0  # Offset
-        return ((4*k)/((1+math.exp(-a*(voltage_pu-x0)))(1+math.exp(b*(voltage_pu-x0))))) - y0
+        return ((4*k)/((1+math.exp(-a*(voltage_pu-x0)))*(1+math.exp(b*(voltage_pu-x0))))) - y0
 
     def switch_taps(self, action_num):
         dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR

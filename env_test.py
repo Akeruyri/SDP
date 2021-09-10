@@ -5,15 +5,11 @@ import numpy as np
 import math
 import gym
 
-###Louis Path
-#path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
-###David Path
-path = r"C:\Users\david\PycharmProjects\pythonProject3\IEEE123MasterSW.dss"
+
+path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
+
 env = reg_env(path)
 
-for each in range(200):
-    print(env.tap_from_action(each))
+print(env.losses())
 
-
-print(dss.Circuit.LineLosses())
-print(env.lineloss)
+print(env.get_reward())
