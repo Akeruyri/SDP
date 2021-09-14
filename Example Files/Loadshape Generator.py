@@ -5,12 +5,12 @@ FilePath = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\13Bus"
 
 #Graph Visual: https://www.desmos.com/calculator/ugwcwpmtgh
 def load_function(x):
-    A1 = 6.18
-    A2 = -0.085
-    c = 0.35
+    A1 = 5
+    A2 = -0.079
+    c = 0.2
     return -A1*(math.sin(x-c)+A2*math.sin(50*x*x)) #Load Function, if a sin or cos is used, values can be smoothly interpolated between days
 def func_map(x):
-    y_int = 0.355
+    y_int = 0.35
     return x*(x-1)*load_function(x)+y_int #Load Function Mapped to range 0,1
 
 # Create loadshape.dss variables

@@ -13,7 +13,6 @@ class reg_env (gym.Env):
         dss.Text.Command("set mode=daily stepsize=5m number=1")
         dss.Text.Command("set hour = 0")
         dss.Text.Command("Solve")
-        #dss.Text.Command("set hour = 0")
 
         ### Action Space Setup ###
 
@@ -94,7 +93,8 @@ class reg_env (gym.Env):
         # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
 
         # To properly define reward we need to make a measurement of our target metric, being that all regulators need
-        # to ensure their target nodes are within 5% of the nominal voltage in the system, and that the losses in a system are minimized.
+        # to ensure their target nodes are within 5% of the nominal voltage in the system, and that the losses in a
+        # system are minimized.
 
         # We need to get the node voltages at each target note of our regulators
         volt_reward = 0
