@@ -14,6 +14,9 @@ class reg_env (gym.Env):
         dss.Text.Command("set hour = 0")
         dss.Text.Command("Solve")
 
+        #Daily Load Flow
+        max_steps = 24;
+
         ### Action Space Setup ###
 
         #Import Regulators and Generate Action List
