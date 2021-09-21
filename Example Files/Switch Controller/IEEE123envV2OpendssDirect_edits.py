@@ -67,7 +67,7 @@ class rlEnv(gym.Env):
             if action == 0 or action == self.SwitchOpenNo:
                 done = bool(0) # if action is 8, that means no action neededN()
             elif action <= 8:
-                if self.SWstates[action] == 0: #action ranges from 0 to 8, and SW states only from 0~8 Status[0] does not use
+                if self.SWstates[action] == 0: # action ranges from 0 to 8, and SW states only from 0~8 Status[0] does not use
                     CloseAction = 1                
                 else:
                     CloseAction = 0

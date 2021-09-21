@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Example Files"
   ],
-  "SelectedNode": "\\regulator.py",
+  "SelectedNode": "\\test_controller.py",
   "PreviewInSolutionExplorer": false
 }
