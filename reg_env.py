@@ -14,14 +14,11 @@ class reg_env (gym.Env):
         dss.Text.Command("set hour = 0")
         dss.Text.Command("Solve")
 
-        #Daily Load Flow
-        max_steps = 24;
-
         ### Action Space Setup ###
 
         #Import Regulators and Generate Action List
         self.reg_names = dss.RegControls.AllNames()
-        self.action_list = (len(self.reg_names) * 33) #33 actions for each regulator * num of regulators (+-16 and 0)
+        self.action_list = 1 + (len(self.reg_names) * 33) #1 No Action + 33 actions for each regulator * num of regulators (+-16 and 0)
 
         ### Observation Space Setup ###
         # Setup Initial State of System, Keeps track of current tap of each regulator
@@ -39,7 +36,9 @@ class reg_env (gym.Env):
         self.obs_list = np.append(self.reg_tap_list, self.volt_list) # Observe current sate of regulators and system voltages
         self.obs_size = self.reg_size + self.volt_size
 
-        ### DQN Parameters ###
+        ### RL Parameters ###
+        self.cur_step = 0
+        self.max_steps = 100
         self.bufferSize = 2048
         self.Reward = 0
         self.done = False
@@ -49,19 +48,23 @@ class reg_env (gym.Env):
         
     def step(self, action):
         # Regulator tap change
-        self.switch_taps(action)
+        done = False
+        if (action != 0): #If we have an action, switch taps. No Action (action = 0) do nothing.
+            self.switch_taps(action)
 
         # Solve for current state
         dss.Text.Command("Solve")
-
-        # NEEDS A FINISHED CONDITION
 
         # Update state and calculate reward
         self.update_reg_state()
         self.update_volt_state()
         temp_observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
         reward = self.get_reward() # Get reward
-        done = False
+
+        if (self.cur_step == self.max_steps):
+            done = True
+        else:
+            self.cur_step += 1
         return temp_observation, reward, done, {"Info":self.reg_tap_list}
 
     def reset(self):
@@ -145,11 +148,4 @@ class reg_env (gym.Env):
         return
 
     def tap_from_action(self, act_num):
-        if act_num % 33 == 0: #If Action is "No Action"
-            return 0
-        elif (act_num % 33) > 0 and (act_num % 33) <= 16: #If Action is "1 to 16"
-            return act_num % 33
-        else: # If Action is "-1 to -16"
-            return -((act_num % 33) - 16)
-
-    
+        return ((act_num-1) % 33) - 16
