@@ -7,15 +7,9 @@ from gym import spaces
 class reg_env (gym.Env):
 
     def __init__(self):
-
-        ### Tracking Vars # TEMP ###
-        self.tracked_avg_reward = 0
-        self.tracked_total_steps = 0
-
-        ### LOUIS PATH ###
-        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
-
         ### DSS Simulation Variables and Setup ###
+        self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
+
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
         dss.Text.Command("set mode=daily stepsize=5m number=1")
@@ -38,8 +32,8 @@ class reg_env (gym.Env):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Reg to pull tap information
             self.reg_tap_list.append(dss.RegControls.TapNumber()) # Append Tap
         
-        # Bus Voltages. For now we will simply import all bus voltages
-        self.volt_list = dss.Circuit.AllBusVMag()
+        # Bus Voltages. For now we will simply import all bus voltages in per unit
+        self.volt_list = dss.Circuit.AllBusMagPu()
         self.volt_size = len(self.volt_list)
 
         # Concatenate both list
@@ -54,8 +48,13 @@ class reg_env (gym.Env):
         self.done = False
         self.state = np.array(self.obs_list) # No sure about this (Starting State?)
         self.action_space = spaces.Discrete(self.action_list) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
-        self.observation_space = spaces.Box(low=-16.0, high=100000, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
-        
+        self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
+
+        ### Tracking Vars ###
+        self.tracked_avg_reward = 0
+        self.tracked_total_steps = 0
+        self.output_file = open(r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv",'w+')
+
     def step(self, action):
         #Tracked
         self.tracked_total_steps += 1
@@ -74,13 +73,17 @@ class reg_env (gym.Env):
         temp_observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
         reward = self.get_reward() # Get reward
 
+        #Run 100 Steps
         if (self.cur_step == self.max_steps):
             done = True
+            self.cur_step = 0
+            if (self.tracked_total_steps != 0):
+                print("Average Reward : ", self.tracked_avg_reward / self.tracked_total_steps)
         else:
             self.cur_step += 1
 
         self.tracked_avg_reward += reward
-        self.output_state()
+        self.output_state(reward)
         return temp_observation, reward, done, {"Info":self.reg_tap_list}
 
     def reset(self):
@@ -96,9 +99,6 @@ class reg_env (gym.Env):
 
     def close(self):
         dss.Basic.ClearAll()
-
-        print("Average Reward : ", self.tracked_avg_reward / self.tracked_total_steps)
-
         return
 
     ### Other Class Functions ###
@@ -109,7 +109,7 @@ class reg_env (gym.Env):
             self.reg_tap_list[reg] = dss.RegControls.TapNumber() # Update its Tap Number
 
     def update_volt_state(self): # Update Current Bus Voltage Magnitudes
-        self.volt_list = dss.Circuit.AllBusVMag()
+        self.volt_list = dss.Circuit.AllBusMagPu()
 
     def get_reward(self):
         # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
@@ -131,18 +131,18 @@ class reg_env (gym.Env):
 
         # Each chunk of reward can be weighted. For just these initial tests we will focus on minimizing loss (voltage reward = 0).
         volt_reward_weight = 100
-        loss_reward_weight = 10
+        loss_reward_weight = 0
         total_reward = (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
         return total_reward
 
     def reward_curve(self, voltage_pu):
         # https://www.desmos.com/calculator/7umau0phxf
         # Link to Function Graph.
-        k = 2   # Amplitude
-        a = 100 # Left Skew
-        b = 100 # Right Skew
-        x0 = 1  # Shift
-        y0 = 0  # Offset
+        k = 12   # Amplitude
+        a = 12 # Left Skew
+        b = -1*a # Right Skew
+        x0 = 1      # Shift
+        y0 = 10  # Vertical Offset
         return ((4*k)/((1+math.exp(-a*(voltage_pu-x0)))*(1+math.exp(b*(voltage_pu-x0))))) - y0
 
     def reg_from_action ( self, action_num ):
@@ -160,10 +160,17 @@ class reg_env (gym.Env):
             dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
         return
 
-    def output_state(self):
-        # print("\nBus Voltages\n")
-        # print(dss.Circuit.AllBusVolts())
-        print("\nRegulator Tap Info\n")
-        for reg in range(self.reg_size):
-            dss.RegControls.Name(self.reg_names[reg])  # Set Active Regulator
-            print("Regulator :", self.reg_names[reg], "- Tap :", dss.RegControls.TapNumber(),)
+    def output_state(self, reward):
+        line = "Step," + str(self.cur_step) + ',Tap,'
+        for reg in self.reg_tap_list:
+            line += str(reg) + ','
+        line += 'Volt (pu),'
+        for volt in self.volt_list:
+            line += str(volt) + ','
+        line += '\n'
+        self.output_file.write(line)
+
+    def close_output_file(self):
+        self.output_file.close()
+
+
