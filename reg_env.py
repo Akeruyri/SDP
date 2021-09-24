@@ -6,10 +6,18 @@ from gym import spaces
 
 class reg_env (gym.Env):
 
-    def __init__(self, path):
+    def __init__(self):
+
+        ### Tracking Vars # TEMP ###
+        self.tracked_avg_reward = 0
+        self.tracked_total_steps = 0
+
+        ### LOUIS PATH ###
+        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+
         ### DSS Simulation Variables and Setup ###
         dss.Basic.ClearAll()
-        dss.Text.Command('Compile "' + path + '"')
+        dss.Text.Command('Compile "' + self.path + '"')
         dss.Text.Command("set mode=daily stepsize=5m number=1")
         dss.Text.Command("set hour = 0")
         dss.Text.Command("Solve")
@@ -19,6 +27,8 @@ class reg_env (gym.Env):
         #Import Regulators and Generate Action List
         self.reg_names = dss.RegControls.AllNames()
         self.action_list = 1 + (len(self.reg_names) * 33) #1 No Action + 33 actions for each regulator * num of regulators (+-16 and 0)
+
+        print(self.reg_names, " : ", len(self.reg_names))
 
         ### Observation Space Setup ###
         # Setup Initial State of System, Keeps track of current tap of each regulator
@@ -47,9 +57,12 @@ class reg_env (gym.Env):
         self.observation_space = spaces.Box(low=-16.0, high=100000, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
 
     def step(self, action):
+        #Tracked
+        self.tracked_total_steps += 1
+
         # Regulator tap change
         done = False
-        if (action != 0): #If we have an action, switch taps. No Action (action = 0) do nothing.
+        if (action > 0 or action < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
             self.switch_taps(action)
 
         # Solve for current state
@@ -65,6 +78,9 @@ class reg_env (gym.Env):
             done = True
         else:
             self.cur_step += 1
+
+        self.tracked_avg_reward += reward
+        self.output_state()
         return temp_observation, reward, done, {"Info":self.reg_tap_list}
 
     def reset(self):
@@ -80,9 +96,13 @@ class reg_env (gym.Env):
 
     def close(self):
         dss.Basic.ClearAll()
+
+        print("Average Reward : ", self.tracked_avg_reward / self.tracked_total_steps)
+
         return
 
-    # Other Class Functions
+    ### Other Class Functions ###
+
     def update_reg_state(self): # Update Current Regulator Tap positions
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Regulator
@@ -91,16 +111,8 @@ class reg_env (gym.Env):
     def update_volt_state(self): # Update Current Bus Voltage Magnitudes
         self.volt_list = dss.Circuit.AllBusVMag()
 
-    def reg_from_action(self, act_num):
-        reg = math.floor(act_num/33)
-        return self.reg_names[reg] # Returns name of regulator
-
     def get_reward(self):
         # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
-
-        # To properly define reward we need to make a measurement of our target metric, being that all regulators need
-        # to ensure their target nodes are within 5% of the nominal voltage in the system, and that the losses in a
-        # system are minimized.
 
         # We need to get the node voltages at each target note of our regulators
         volt_reward = 0
@@ -111,22 +123,17 @@ class reg_env (gym.Env):
             reward = np.zeros(len(voltages)) # List of equal length to store the reward for this regulator's monitored bus.
             for i in range(len(voltages)):
                 reward[i] = self.reward_curve(voltages[i])
-            reward_reg = sum(reward)/len(reward) # average out the rewards for this regulator's monitored bus
+            reward_reg = sum(reward)/len(reward) # Average out the rewards for this regulator's monitored bus
             volt_reward += reward_reg # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
 
         # Our reward should also minimize loss, so additional reward is added for that
-        loss_reward = sum(1 / self.losses()) # For this the system losses are inverted then summed.
+        loss_reward = 1 / np.sum(dss.Circuit.LineLosses()) # For this the system losses are inverted then summed.
 
         # Each chunk of reward can be weighted. For just these initial tests we will focus on minimizing loss (voltage reward = 0).
-        volt_reward_weight = 0
-        loss_reward_weight = 1
+        volt_reward_weight = 100
+        loss_reward_weight = 10
         total_reward = (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
-
         return total_reward
-
-    def losses(self): # Return SUM of all losses in the system
-        print(dss.Circuit.LineLosses())
-        return dss.Circuit.LineLosses() #All System Line Losses, used for reward.
 
     def reward_curve(self, voltage_pu):
         # https://www.desmos.com/calculator/7umau0phxf
@@ -138,6 +145,12 @@ class reg_env (gym.Env):
         y0 = 0  # Offset
         return ((4*k)/((1+math.exp(-a*(voltage_pu-x0)))*(1+math.exp(b*(voltage_pu-x0))))) - y0
 
+    def reg_from_action ( self, action_num ):
+        return self.reg_names[math.floor((action_num - 1) / 33)]  # Returns name of regulator
+
+    def tap_from_action ( self, action_num ):
+        return ((action_num - 1) % 33) - 16 #Returns a tap position
+
     def switch_taps(self, action_num):
         dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR
         tap_num = self.tap_from_action(action_num)
@@ -147,5 +160,10 @@ class reg_env (gym.Env):
             dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
         return
 
-    def tap_from_action(self, act_num):
-        return ((act_num-1) % 33) - 16
+    def output_state(self):
+        # print("\nBus Voltages\n")
+        # print(dss.Circuit.AllBusVolts())
+        print("\nRegulator Tap Info\n")
+        for reg in range(self.reg_size):
+            dss.RegControls.Name(self.reg_names[reg])  # Set Active Regulator
+            print("Regulator :", self.reg_names[reg], "- Tap :", dss.RegControls.TapNumber(),)
