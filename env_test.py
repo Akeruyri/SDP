@@ -11,6 +11,6 @@ env = reg_env()
 
 model = DQN(MlpPolicy, env, learning_rate=0.01, buffer_size=2048, learning_starts=0, target_update_interval=48, verbose=1)
 
-model.learn(total_timesteps=200, log_interval=100)
+model.learn(total_timesteps=2400, log_interval=100)
 
 env.close_output_file()
