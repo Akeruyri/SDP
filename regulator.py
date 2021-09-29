@@ -2,4 +2,4 @@
 class regulator:
     def __init__ (self, name, num):
         self.reg_name = name
-        self.reg_num
+        self.reg_num = num

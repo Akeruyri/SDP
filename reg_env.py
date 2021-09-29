@@ -15,6 +15,7 @@ class reg_env (gym.Env):
         dss.Text.Command("set hour = 0")
 
         #Import Regulators and Generate Action List
+        # self.regulator_list = dss.RegControls.AllNames()
         self.regulator_list = dss.RegControls.AllNames()
         self.action_list = (len(self.regulator_list) * 33) #33 actions for each regulator * num of regulators (+-16 and 0) 
         self.regulator_size = len(self.regulator_list)
@@ -22,19 +23,19 @@ class reg_env (gym.Env):
         #Setup Current State of System, Keeps track of current tap of each regulator
         self.system_state = []
         for reg in range(self.regulator_size):
-            dss.RegControls.Name(self.reregulator_list[reg])
-            self.system_state.append(regulator(self.regulator_list[reg],dss.RegControls.TapNumber()))
+            dss.RegControls.Name(self.regulator_list[reg])
+            self.system_state.append(regulator(self.regulator_list[reg], dss.RegControls.TapNumber()))
         
         #Potential Variables to Track and use in Observation
         #   1. Current Loadshape P and Q level
         #   2. Node Voltages, either all or a selection. (This one would be more comprable to real life)
        
-        #DQN Parameters
-        self.bufferSize = 2048
-        self.Reward = 0
-        self.done = False
-        self.action_space = spaces.Discrete(self.action_list) #Action spaced defined as a discrete list of each tap change actions, rather than multiple actions per step for simplicity
-        self.observation_space = spaces.Box(low=-16.0, shape=(), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
+        # #DQN Parameters
+        # self.bufferSize = 2048
+        # self.Reward = 0
+        # self.done = False
+        # self.action_space = spaces.Discrete(self.action_list) #Action spaced defined as a discrete list of each tap change actions, rather than multiple actions per step for simplicity
+        # self.observation_space = spaces.Box(low=-16.0, shape=(), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
         
 
     def step(self, action):
@@ -45,8 +46,8 @@ class reg_env (gym.Env):
 
         #Solve
         dss.Text.Command("Solve")
-
-        return temp_observation, reward, done, info
+        return
+        # return temp_observation, reward, done, info
 
     def reset(self):
         observation = self.step(0)

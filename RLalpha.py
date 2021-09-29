@@ -67,9 +67,9 @@ class rlEnv(gym.Env):
         #     self.state.append(0)
         self.action_space = spaces.Discrete(self.actNum) #[0,1] if discrete(2)
         self.observation_space = spaces.Box(low=-1.0, high=20000, shape=(self.svNum, ), dtype=np.float32)
-        self.brnName = "Line.L115"
-        self.SwitchOpenNo = 4 # Switch number 4 is open at 1st step to isolate the fault
-        self.SwitchOpen = 'SwtControl.Sw' + str(self.SwitchOpenNo)
+        # self.brnName = "Line.L115"
+        # self.SwitchOpenNo = 4 # Switch number 4 is open at 1st step to isolate the fault
+        # self.SwitchOpen = 'SwtControl.Sw' + str(self.SwitchOpenNo)
         
         # self.run_command = self.SwitchOpen + ".Action = Open"
         # self.run_command = self.SwitchOpen +".Lock = Yes"
