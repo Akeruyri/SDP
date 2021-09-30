@@ -9,8 +9,8 @@ class reg_env (gym.Env):
     def __init__(self):
 
         ### DSS Simulation Variables and Setup ###
-        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
+        self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
+        self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
         self.cur_hour = 0 #Hour of Daily Load Flow
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
@@ -63,6 +63,11 @@ class reg_env (gym.Env):
             self.switch_taps(action)
 
         # Solve for current state
+
+        ###
+        ### SET A LOAD MULTIPLIER NOT AN HOUR ###
+        ###
+
         self.solve_cur_hour(self.cur_hour)
 
         # Update state and calculate reward
