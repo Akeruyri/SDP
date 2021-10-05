@@ -9,14 +9,19 @@ class reg_env (gym.Env):
     def __init__(self):
 
         ### DSS Simulation Variables and Setup ###
-        self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
-        self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
-        self.cur_hour = 0 #Hour of Daily Load Flow
+        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
+        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
+
+        #DSS Loadshape
+        self.cur_point = 0
+        self.max_points = 24
+
+        #Solve initial state
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
-        dss.Text.Command("set mode=daily stepsize=1h")
-        dss.Text.Command("Batchedit Load..* daily=default") #Select Default Loadshape
-        self.solve_cur_hour(self.cur_hour)
+        dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("Solve")
+        #dss.Text.Command("Batchedit Load..* daily=default") #Select Default Loadshape
 
         ### Action Space Setup ###
 
@@ -52,10 +57,13 @@ class reg_env (gym.Env):
         self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
 
         ### Tracking Vars ###
-        self.tracked_avg_reward = 0
+
+        self.tracked_total_reward = 0
         self.tracked_total_steps = 1
         self.output_file = open(self.output_path,'w+')
         self.output_state(12345) #Initial State
+
+    ### Gym Functions ###
 
     def step(self, action):
         # Regulator tap change
@@ -63,33 +71,31 @@ class reg_env (gym.Env):
             self.switch_taps(action)
 
         # Solve for current state
+        self.solve_cur_load(self.load_mult(self.cur_point))
 
-        ###
-        ### SET A LOAD MULTIPLIER NOT AN HOUR ###
-        ###
-
-        self.solve_cur_hour(self.cur_hour)
-
-        # Update state and calculate reward
+        # Update state
         self.update_reg_state()
         self.update_volt_state()
+
+        # Calculate reward
         observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
         reward = self.get_reward() # Get reward
 
-        #Run 100 Steps at current hour, then incrememnt to run at next hour
+        # Run 100 Steps at current load, then increment to run at next load multiplier
         done = False
         self.cur_step += 1
         if (self.cur_step == self.max_steps):
-            print("Average Reward :", self.tracked_avg_reward / self.tracked_total_steps,"- Summed Reward :", self.tracked_avg_reward, "- Current Step:", self.cur_step,"- Current Hour:", self.cur_hour, "- Total Steps :", self.tracked_total_steps)
-            self.cur_step = 0 #Reset Solve
-            if (self.cur_hour == 24):
+            print("Average Reward :", self.tracked_total_reward / self.tracked_total_steps,"- Summed Reward :", self.tracked_total_reward, "- Current Step:", self.cur_step,"- Current Pt:", self.cur_point, "- Current Load:", self.load_mult(self.cur_point), "- Total Steps :", self.tracked_total_steps)
+            self.cur_step = 0 # Reset Solve Steps
+            # Adjust loadshape point every # max_steps
+            if (self.cur_point == self.max_points):
                 done = True
             else:
-                self.cur_hour += 1 #Increment Measurement Hour
+                self.cur_point += 1 # Increment Measurement Point
 
-        #Tracked
+        # Tracked Vars#
         self.tracked_total_steps += 1
-        self.tracked_avg_reward += reward
+        self.tracked_total_reward += reward
         self.output_state(reward)
 
         return observation, reward, done, {"Info":self.reg_tap_list}
@@ -112,18 +118,44 @@ class reg_env (gym.Env):
 
     ### Other Class Functions ###
 
-    def solve_cur_hour(self, hour):
-        dss.Text.Command("set hour = " + str(hour))
+    # Action Functions
+    def reg_from_action ( self, action_num ):
+        return self.reg_names[math.floor((action_num - 1) / 33)]  # Returns name of regulator
+    def tap_from_action ( self, action_num ):
+        return ((action_num - 1) % 33) - 16 #Returns a tap position
+    def switch_taps(self, action_num):
+        dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR
+        tap_num = self.tap_from_action(action_num)
+        if tap_num == 0:
+            return
+        else:
+            dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
+        return
+
+    # Solve Command
+    def solve_cur_load(self, load_mult):
+        dss.Solution.LoadMult(load_mult) #Set current non-fixed Load Multiplier.
         dss.Text.Command("Solve")
 
+    # Loadshape Functions
+    def load_mult(self, index):
+        if (index > self.max_points):
+            return 0
+        return self.load_func(float(index)/self.max_points)
+    def load_func(self, x): #Simple Ramp function from 0 to 1 over x range 0 to 1
+        A1 = 1
+        A2 = 0
+        return A1*x+A2
+
+    # Update Functions
     def update_reg_state(self): # Update Current Regulator Tap positions
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Regulator
             self.reg_tap_list[reg] = dss.RegControls.TapNumber() # Update its Tap Number
-
     def update_volt_state(self): # Update Current Bus Voltage Magnitudes
         self.volt_list = dss.Circuit.AllBusMagPu()
 
+    # Reward Functions
     def get_reward(self):
         # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
         volt_reward_weight = 0
@@ -143,13 +175,13 @@ class reg_env (gym.Env):
                 volt_reward += reward_reg # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
 
         # Our reward should also minimize loss, so additional reward is added for that
+        loss_reward = 0
         if (loss_reward_weight != 0):
             loss_reward = 1 / np.sum(dss.Circuit.LineLosses()) # For this the system losses are inverted then summed.
 
         # Each chunk of reward can be weighted. For just these initial tests we will focus on minimizing loss (voltage reward = 0).
         total_reward = (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
         return total_reward
-
     def reward_curve(self, voltage_pu):
         # https://www.desmos.com/calculator/7umau0phxf
         # Link to Function Graph.
@@ -160,23 +192,9 @@ class reg_env (gym.Env):
         y0 = 10  # Vertical Offset
         return ((4*k)/((1+math.exp(-a*(voltage_pu-x0)))*(1+math.exp(b*(voltage_pu-x0))))) - y0
 
-    def reg_from_action ( self, action_num ):
-        return self.reg_names[math.floor((action_num - 1) / 33)]  # Returns name of regulator
-
-    def tap_from_action ( self, action_num ):
-        return ((action_num - 1) % 33) - 16 #Returns a tap position
-
-    def switch_taps(self, action_num):
-        dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR
-        tap_num = self.tap_from_action(action_num)
-        if tap_num == 0:
-            return
-        else:
-            dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
-        return
-
+    # Output Functions
     def output_state(self, reward):
-        line = "Step," + str(self.cur_step) + ",Reward," + str(reward) + ",Time," + str(dss.Solution.DblHour()) + ',Tap,'
+        line = "Step," + str(self.cur_step) + ",Point," + str(self.cur_point) + ",Load_Mult," + str(self.load_mult(self.cur_point)) + ",Reward," + str(reward) + ',Tap,'
         for reg in self.reg_tap_list:
             line += str(reg) + ','
         line += 'Volt (pu),'
@@ -184,6 +202,5 @@ class reg_env (gym.Env):
             line += str(volt) + ','
         line += '\n'
         self.output_file.write(line)
-
     def close_output_file(self):
         self.output_file.close()
