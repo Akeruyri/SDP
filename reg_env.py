@@ -9,8 +9,11 @@ class reg_env (gym.Env):
     def __init__(self):
 
         ### DSS Simulation Variables and Setup ###
-        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
+        #self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
+        #self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
+
+        self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
+        self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
 
         #DSS Loadshape
         self.cur_point = 0
@@ -159,7 +162,9 @@ class reg_env (gym.Env):
     def get_reward(self):
         # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
         volt_reward_weight = 0
+        volt_violation_penalty = -100
         loss_reward_weight = 10
+        #tap_change_penalty = -10 # Work on this later
 
         # We need to get the node voltages at each target note of our regulators
         volt_reward = 0
@@ -170,14 +175,17 @@ class reg_env (gym.Env):
                 voltages = dss.Bus.PuVoltage() # List of pu Voltages at Bus. This should be 3 normally, but I'm not sure
                 reward = np.zeros(len(voltages)) # List of equal length to store the reward for this regulator's monitored bus.
                 for i in range(len(voltages)):
-                    reward[i] = self.reward_curve(voltages[i])
+                    if (voltages[i] > 1.05 or voltages[i] < 0.95): #If Voltage is outside 5% limits, give large penalty
+                        reward[i] = volt_violation_penalty
+                    else: #Else use the voltage reward curve
+                        reward[i] = self.reward_curve(voltages[i])
                 reward_reg = sum(reward)/len(reward) # Average out the rewards for this regulator's monitored bus
                 volt_reward += reward_reg # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
 
         # Our reward should also minimize loss, so additional reward is added for that
         loss_reward = 0
         if (loss_reward_weight != 0):
-            loss_reward = 1 / np.sum(dss.Circuit.LineLosses()) # For this the system losses are inverted then summed.
+            loss_reward = -1 * np.sum(dss.Circuit.LineLosses()) # For this the system losses are inverted then summed.
 
         # Each chunk of reward can be weighted. For just these initial tests we will focus on minimizing loss (voltage reward = 0).
         total_reward = (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
@@ -185,12 +193,8 @@ class reg_env (gym.Env):
     def reward_curve(self, voltage_pu):
         # https://www.desmos.com/calculator/7umau0phxf
         # Link to Function Graph.
-        k = 12   # Amplitude
-        a = 12 # Left Skew
-        b = -1*a # Right Skew
-        x0 = 1      # Shift
-        y0 = 10  # Vertical Offset
-        return ((4*k)/((1+math.exp(-a*(voltage_pu-x0)))*(1+math.exp(b*(voltage_pu-x0))))) - y0
+        A = 10
+        return -1000*A*(voltage_pu-0.95)(voltage_pu-1.05)
 
     # Output Functions
     def output_state(self, reward):
