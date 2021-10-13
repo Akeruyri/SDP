@@ -13,7 +13,9 @@ class reg_env (gym.Env):
         self.tracked_total_steps = 0
 
         ### LOUIS PATH ###
-        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+        #self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+        ### Alberto PATH ###
+        self.path = r"C:\Program Files\OpenDSS\IEEETestCases\123Bus\IEEE123MasterSW.dss"
 
         ### DSS Simulation Variables and Setup ###
         dss.Basic.ClearAll()
