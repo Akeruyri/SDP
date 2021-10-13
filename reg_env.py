@@ -9,11 +9,11 @@ class reg_env (gym.Env):
     def __init__(self):
 
         ### DSS Simulation Variables and Setup ###
-        #self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-        #self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
+        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
+        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
 
-        self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
-        self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
+        #self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
+        #self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
 
         #DSS Loadshape
         self.cur_point = 0
@@ -23,8 +23,8 @@ class reg_env (gym.Env):
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
         dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("batchedit regcontrol..* enabled=false")  # Disable regulator control, taps are set manually
         dss.Text.Command("Solve")
-        #dss.Text.Command("Batchedit Load..* daily=default") #Select Default Loadshape
 
         ### Action Space Setup ###
 
@@ -36,6 +36,7 @@ class reg_env (gym.Env):
         ### Observation Space Setup ###
         # Setup Initial State of System, Keeps track of current tap of each regulator
         self.reg_tap_list = []
+        self.reg_tap_list_prev = []
         self.reg_size = len(self.reg_names)
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Reg to pull tap information
@@ -57,32 +58,34 @@ class reg_env (gym.Env):
         self.done = False
         self.state = np.array(self.obs_list) # No sure about this (Starting State?)
         self.action_space = spaces.Discrete(self.action_list) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
-        self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32) # INCOMPLETE NEEDS DISCUSSION
+        self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32)
 
         ### Tracking Vars ###
-
+        self.tap_change_violation_count = 0
+        self.voltage_violation_count = 0
         self.tracked_total_reward = 0
         self.tracked_total_steps = 1
         self.output_file = open(self.output_path,'w+')
-        self.output_state(12345) #Initial State
+        self.output_state(12345, -1) #Initial State
 
     ### Gym Functions ###
 
-    def step(self, action):
+    def step(self, actions):
         # Regulator tap change
-        if (action > 0 or action < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
-            self.switch_taps(action)
+        if (actions > 0 or actions < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
+            self.switch_taps(actions)
 
         # Solve for current state
         self.solve_cur_load(self.load_mult(self.cur_point))
 
         # Update state
+        self.reg_tap_list_prev = self.reg_tap_list # Set for reward function comparison
         self.update_reg_state()
         self.update_volt_state()
 
         # Calculate reward
         observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
-        reward = self.get_reward() # Get reward
+        reward = self.step_reward() # Get reward of current step
 
         # Run 100 Steps at current load, then increment to run at next load multiplier
         done = False
@@ -99,7 +102,7 @@ class reg_env (gym.Env):
         # Tracked Vars#
         self.tracked_total_steps += 1
         self.tracked_total_reward += reward
-        self.output_state(reward)
+        self.output_state(reward, actions)
 
         return observation, reward, done, {"Info":self.reg_tap_list}
 
@@ -122,17 +125,20 @@ class reg_env (gym.Env):
     ### Other Class Functions ###
 
     # Action Functions
-    def reg_from_action ( self, action_num ):
+    def reg_from_action (self, action_num):
         return self.reg_names[math.floor((action_num - 1) / 33)]  # Returns name of regulator
-    def tap_from_action ( self, action_num ):
+    def tap_from_action (self, action_num):
         return ((action_num - 1) % 33) - 16 #Returns a tap position
+    def pu_from_tap(self, tap):
+        return np.interp(tap, [-16,16], [0.9,1.1])
     def switch_taps(self, action_num):
         dss.RegControls.Name(self.reg_from_action(action_num)) # Set active SVR
-        tap_num = self.tap_from_action(action_num)
-        if tap_num == 0:
+        dss.Transformers.Name(dss.RegControls.Transformer()) # Set active Transformer controlled by the Regulator
+        tap = self.tap_from_action(action_num)
+        if tap == 0:
             return
         else:
-            dss.RegControls.TapNumber(tap_num)  # Attempt a tap change on Active Regulator
+            dss.Transformers.Tap(self.pu_from_tap(tap))  # Change tap on the Active Transformer
         return
 
     # Solve Command
@@ -145,12 +151,12 @@ class reg_env (gym.Env):
         if (index > self.max_points):
             return 0
         return self.load_func(float(index)/self.max_points)
-    def load_func(self, x): #Simple Ramp function from 0 to 1 over x range 0 to 1
+    def load_func(self, x): #Simple Ramp function from 0 to 1 over x range 0 to 1, can be redefined to test various loadshapes
         A1 = 1
         A2 = 0
         return A1*x+A2
 
-    # Update Functions
+    # State Update Functions
     def update_reg_state(self): # Update Current Regulator Tap positions
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Regulator
@@ -158,53 +164,71 @@ class reg_env (gym.Env):
     def update_volt_state(self): # Update Current Bus Voltage Magnitudes
         self.volt_list = dss.Circuit.AllBusMagPu()
 
-    # Reward Functions
-    def get_reward(self):
-        # The less system loss, the higher the reward. This may need to be a stored sum over the course of an episode (multiple steps)
-        volt_reward_weight = 0
-        volt_violation_penalty = -100
+    # Step Reward Functions
+    def step_reward(self):
+        # Rewards can be weighted or disabled (weight = 0)
+        volt_reward_weight = 10
         loss_reward_weight = 10
-        #tap_change_penalty = -10 # Work on this later
+        tap_reward_weight = 10
 
-        # We need to get the node voltages at each target note of our regulators
+        # Rewards can be negative (penalties)
+        volt_violation_penalty = -100
+        tap_change_penalty = -10
+
+        # A penalty (negative reward) should be applied for changing tap positions greater than 1.
+        tap_reward = 0
+        if (tap_reward_weight != 0):
+            for i in range(len(self.reg_tap_list)):
+                tap_distance = abs(self.reg_tap_list_prev[i] - self.reg_tap_list[i])
+                if (tap_distance > 1): # If a tap was moved more than 1 position from the previous step (ex: tap -10 to -3), give penalty
+                    tap_reward += tap_change_penalty * tap_distance # the larger this jump the more negative the reward.
+                    self.tap_change_violation_count += 1 # Track # of tap violations
+
+        # The reward should be based on our voltage criteria, that being keep levels within 5% of nominal
         volt_reward = 0
         if (volt_reward_weight != 0):
-            for reg in range(self.reg_size):
-                dss.RegControls.Name(self.reg_names[reg]) # Set Active Regulator
-                dss.ActiveClass.Name(dss.RegControls.MonitoredBus()) # Set Active Bus based on Active Regulator's Monitored Bus <- This step may be wrong
-                voltages = dss.Bus.PuVoltage() # List of pu Voltages at Bus. This should be 3 normally, but I'm not sure
-                reward = np.zeros(len(voltages)) # List of equal length to store the reward for this regulator's monitored bus.
-                for i in range(len(voltages)):
-                    if (voltages[i] > 1.05 or voltages[i] < 0.95): #If Voltage is outside 5% limits, give large penalty
-                        reward[i] = volt_violation_penalty
-                    else: #Else use the voltage reward curve
-                        reward[i] = self.reward_curve(voltages[i])
-                reward_reg = sum(reward)/len(reward) # Average out the rewards for this regulator's monitored bus
-                volt_reward += reward_reg # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
+            voltage = self.volt_list # Evaluate Voltages at all Buses
+            reward = np.zeros(len(voltage)) # Store a reward for each
+            for i in range(len(voltage)):
+                if (voltage[i] > 1.05 or voltage[i] < 0.95): # If Voltage is outside 5% limits, give large penalty
+                    reward[i] = volt_violation_penalty
+                    self.voltage_violation_count += 1
+                else: # Else use the voltage reward curve, the closer to 1.0 the better, for now a simple parabola
+                    reward[i] = -10000*(voltage[i]-0.95)*(voltage[i]-1.05)
+            volt_reward = sum(reward) # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
 
-        # Our reward should also minimize loss, so additional reward is added for that
+        # The reward should minimize line losses in our system
         loss_reward = 0
         if (loss_reward_weight != 0):
             loss_reward = -1 * np.sum(dss.Circuit.LineLosses()) # For this the system losses are inverted then summed.
 
-        # Each chunk of reward can be weighted. For just these initial tests we will focus on minimizing loss (voltage reward = 0).
-        total_reward = (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
+        total_reward = (tap_reward*tap_reward_weight) + (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
         return total_reward
-    def reward_curve(self, voltage_pu):
-        # https://www.desmos.com/calculator/7umau0phxf
-        # Link to Function Graph.
-        A = 10
-        return -1000*A*(voltage_pu-0.95)(voltage_pu-1.05)
 
-    # Output Functions
-    def output_state(self, reward):
-        line = "Step," + str(self.cur_step) + ",Point," + str(self.cur_point) + ",Load_Mult," + str(self.load_mult(self.cur_point)) + ",Reward," + str(reward) + ',Tap,'
-        for reg in self.reg_tap_list:
-            line += str(reg) + ','
-        line += 'Volt (pu),'
-        for volt in self.volt_list:
-            line += str(volt) + ','
-        line += '\n'
+    # Output File Functions
+    def output_state(self, reward, action):
+        if (reward == 12345):
+            line = "Step,xxxx,Point,xxxx,Load_Mult,xxxx"
+            line += ",Tap Violations,xxxx,Voltage Violations,xxxx"
+            line += ",Reg Changed,xxxx,Tap Changed,xxxx"
+            line += ",Reward,xxxx,Tap,"
+            for reg in self.reg_names:
+                line += reg + ','
+            line += 'Volt (pu),'
+            for i in range(len(dss.Circuit.AllNodeNames())):
+                line += dss.Circuit.AllNodeNames()[i] + ','
+            line += '\n'
+        else:
+            line = "Step," + str(self.cur_step) + ",Point," + str(self.cur_point) + ",Load_Mult," + str(self.load_mult(self.cur_point))
+            line += ",Tap Violations," + str(self.tap_change_violation_count) + ",Voltage Violations," + str(self.voltage_violation_count)
+            line += ",Reg Changed," + self.reg_from_action(action) + ",Tap Changed," + str(self.tap_from_action(action))
+            line += ",Reward," + str(reward) + ',Tap,'
+            for reg in self.reg_tap_list:
+                line += str(reg) + ','
+            line += 'Volt (pu),'
+            for volt in self.volt_list:
+                line += str(volt) + ','
+            line += '\n'
         self.output_file.write(line)
     def close_output_file(self):
         self.output_file.close()
