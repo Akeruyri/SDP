@@ -9,14 +9,16 @@ class reg_env (gym.Env):
     def __init__(self):
 
         ### DSS Simulation Variables and Setup ###
+        #Desktop
         self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
         self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
 
+        #Laptop
         #self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
         #self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
 
         #DSS Loadshape
-        self.cur_point = 0
+        self.cur_point = 1
         self.max_points = 24
 
         #Solve initial state
@@ -25,6 +27,7 @@ class reg_env (gym.Env):
         dss.Text.Command("set mode=snapshot")
         dss.Text.Command("batchedit regcontrol..* enabled=false")  # Disable regulator control, taps are set manually
         dss.Text.Command("Solve")
+        dss.Solution.LoadMult(self.load_mult(self.cur_point)) #Set Initial Load Multiplier
 
         ### Action Space Setup ###
 
@@ -64,22 +67,24 @@ class reg_env (gym.Env):
         self.tap_change_violation_count = 0
         self.voltage_violation_count = 0
         self.tracked_total_reward = 0
-        self.tracked_total_steps = 1
+        self.tracked_total_steps = 0
         self.output_file = open(self.output_path,'w+')
-        self.output_state(12345, -1) #Initial State
+        self.output_state(0.1, -1) #Initial State
 
     ### Gym Functions ###
 
     def step(self, actions):
+        # Set for reward function comparison
+        self.reg_tap_list_prev = self.reg_tap_list
+
         # Regulator tap change
         if (actions > 0 or actions < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
             self.switch_taps(actions)
 
         # Solve for current state
-        self.solve_cur_load(self.load_mult(self.cur_point))
+        self.solve()
 
         # Update state
-        self.reg_tap_list_prev = self.reg_tap_list # Set for reward function comparison
         self.update_reg_state()
         self.update_volt_state()
 
@@ -89,32 +94,38 @@ class reg_env (gym.Env):
 
         # Run 100 Steps at current load, then increment to run at next load multiplier
         done = False
-        self.cur_step += 1
         if (self.cur_step == self.max_steps):
-            print("Average Reward :", self.tracked_total_reward / self.tracked_total_steps,"- Summed Reward :", self.tracked_total_reward, "- Current Step:", self.cur_step,"- Current Pt:", self.cur_point, "- Current Load:", self.load_mult(self.cur_point), "- Total Steps :", self.tracked_total_steps)
-            self.cur_step = 0 # Reset Solve Steps
+            self.tracked_total_steps += 100
+            print("Average Reward :", self.tracked_total_reward / (self.tracked_total_steps+1), "- Current Step:",
+                  self.cur_step, "- Current Pt:", self.cur_point, "- Current Load:", self.load_mult(self.cur_point),
+                  "- Total Steps :", self.tracked_total_steps)
+            self.cur_step = 1  # Reset Solve Steps
             # Adjust loadshape point every # max_steps
             if (self.cur_point == self.max_points):
                 done = True
             else:
-                self.cur_point += 1 # Increment Measurement Point
+                self.cur_point += 1  # Increment Load Mult Point
+                dss.Solution.LoadMult(self.load_mult(self.cur_point)) # Update Load Multiplier
+        else:
+            self.cur_step += 1
 
         # Tracked Vars#
-        self.tracked_total_steps += 1
+
         self.tracked_total_reward += reward
         self.output_state(reward, actions)
-
+        self.tap_change_violation_count = 0  # Reset out Violation Counts
+        self.voltage_violation_count = 0
         return observation, reward, done, {"Info":self.reg_tap_list}
 
     def reset(self):
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"') # Recompile circuit after reset
-        dss.Text.Command("set mode=daily stepsize=5m number=1")
-        self.cur_hour = 0
-        self.cur_step = 0
+        dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("batchedit regcontrol..* enabled=false")
         self.update_reg_state() # Get starting state
-        self.update_volt_state() 
+        self.update_volt_state()
         observation = np.append(self.reg_tap_list, self.volt_list) # Create new observation state
+        dss.Solution.LoadMult(self.load_mult(self.cur_point))  # Update Load Multiplier
         self.done = False
         return observation
 
@@ -142,8 +153,7 @@ class reg_env (gym.Env):
         return
 
     # Solve Command
-    def solve_cur_load(self, load_mult):
-        dss.Solution.LoadMult(load_mult) #Set current non-fixed Load Multiplier.
+    def solve(self):
         dss.Text.Command("Solve")
 
     # Loadshape Functions
@@ -178,6 +188,9 @@ class reg_env (gym.Env):
         # A penalty (negative reward) should be applied for changing tap positions greater than 1.
         tap_reward = 0
         if (tap_reward_weight != 0):
+            if (self.cur_step == 50):
+                print("cur ", self.reg_tap_list)
+                print("prev ", self.reg_tap_list_prev)
             for i in range(len(self.reg_tap_list)):
                 tap_distance = abs(self.reg_tap_list_prev[i] - self.reg_tap_list[i])
                 if (tap_distance > 1): # If a tap was moved more than 1 position from the previous step (ex: tap -10 to -3), give penalty
@@ -207,11 +220,8 @@ class reg_env (gym.Env):
 
     # Output File Functions
     def output_state(self, reward, action):
-        if (reward == 12345):
-            line = "Step,xxxx,Point,xxxx,Load_Mult,xxxx"
-            line += ",Tap Violations,xxxx,Voltage Violations,xxxx"
-            line += ",Reg Changed,xxxx,Tap Changed,xxxx"
-            line += ",Reward,xxxx,Tap,"
+        if (reward == 0.1):
+            line = "Step,Point,Load_Mult,Tap Violations,Voltage Violations,Reg Changed,Tap Changed,Reward,"
             for reg in self.reg_names:
                 line += reg + ','
             line += 'Volt (pu),'
@@ -219,13 +229,13 @@ class reg_env (gym.Env):
                 line += dss.Circuit.AllNodeNames()[i] + ','
             line += '\n'
         else:
-            line = "Step," + str(self.cur_step) + ",Point," + str(self.cur_point) + ",Load_Mult," + str(self.load_mult(self.cur_point))
-            line += ",Tap Violations," + str(self.tap_change_violation_count) + ",Voltage Violations," + str(self.voltage_violation_count)
-            line += ",Reg Changed," + self.reg_from_action(action) + ",Tap Changed," + str(self.tap_from_action(action))
-            line += ",Reward," + str(reward) + ',Tap,'
+            line = str(self.cur_step) + "," + str(self.cur_point) + "," + str(dss.Solution.LoadMult())
+            line += "," + str(self.tap_change_violation_count) + "," + str(self.voltage_violation_count)
+            line += "," + self.reg_from_action(action) + "," + str(self.tap_from_action(action))
+            line += "," + str(reward) + ','
             for reg in self.reg_tap_list:
                 line += str(reg) + ','
-            line += 'Volt (pu),'
+            line += ','
             for volt in self.volt_list:
                 line += str(volt) + ','
             line += '\n'
