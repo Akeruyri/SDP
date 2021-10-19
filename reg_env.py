@@ -44,6 +44,7 @@ class reg_env (gym.Env):
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg]) # Set Active Reg to pull tap information
             self.reg_tap_list.append(dss.RegControls.TapNumber()) # Append Tap
+            self.reg_tap_list_prev.append(0)
         
         # Bus Voltages. For now we will simply import all bus voltages in per unit
         self.volt_list = dss.Circuit.AllBusMagPu()
@@ -75,7 +76,8 @@ class reg_env (gym.Env):
 
     def step(self, actions):
         # Set for reward function comparison
-        self.reg_tap_list_prev = self.reg_tap_list
+        for reg in range(self.reg_size):
+            self.reg_tap_list_prev[reg]= self.reg_tap_list[reg]
 
         # Regulator tap change
         if (actions > 0 or actions < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
@@ -110,7 +112,6 @@ class reg_env (gym.Env):
             self.cur_step += 1
 
         # Tracked Vars#
-
         self.tracked_total_reward += reward
         self.output_state(reward, actions)
         self.tap_change_violation_count = 0  # Reset out Violation Counts
@@ -188,14 +189,11 @@ class reg_env (gym.Env):
         # A penalty (negative reward) should be applied for changing tap positions greater than 1.
         tap_reward = 0
         if (tap_reward_weight != 0):
-            if (self.cur_step == 50):
-                print("cur ", self.reg_tap_list)
-                print("prev ", self.reg_tap_list_prev)
             for i in range(len(self.reg_tap_list)):
                 tap_distance = abs(self.reg_tap_list_prev[i] - self.reg_tap_list[i])
                 if (tap_distance > 1): # If a tap was moved more than 1 position from the previous step (ex: tap -10 to -3), give penalty
                     tap_reward += tap_change_penalty * tap_distance # the larger this jump the more negative the reward.
-                    self.tap_change_violation_count += 1 # Track # of tap violations
+                    self.tap_change_violation_count += 1 # Track # of tap violations -> This will usually just be 1, but when we get MultiDiscrete working this can be higher
 
         # The reward should be based on our voltage criteria, that being keep levels within 5% of nominal
         volt_reward = 0
@@ -221,7 +219,7 @@ class reg_env (gym.Env):
     # Output File Functions
     def output_state(self, reward, action):
         if (reward == 0.1):
-            line = "Step,Point,Load_Mult,Tap Violations,Voltage Violations,Reg Changed,Tap Changed,Reward,"
+            line = "Step,Point,Load_Mult,Tap Violations,Voltage Violations,Reg Changed,Tap Changed,Reward,Regulator States,"
             for reg in self.reg_names:
                 line += reg + ','
             line += 'Volt (pu),'
@@ -232,7 +230,7 @@ class reg_env (gym.Env):
             line = str(self.cur_step) + "," + str(self.cur_point) + "," + str(dss.Solution.LoadMult())
             line += "," + str(self.tap_change_violation_count) + "," + str(self.voltage_violation_count)
             line += "," + self.reg_from_action(action) + "," + str(self.tap_from_action(action))
-            line += "," + str(reward) + ','
+            line += "," + str(reward) + ',,'
             for reg in self.reg_tap_list:
                 line += str(reg) + ','
             line += ','
