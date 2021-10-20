@@ -13,7 +13,11 @@ class reg_env (gym.Env):
         self.tracked_total_steps = 0
 
         ### LOUIS PATH ###
-        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+        #self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\OpenDSS\123BusSW\IEEE123MasterSW.dss"
+        ### DAVID PATH ###
+        #self.path = r"D:\Program Files\OpenDSS\IEEETestCases\123Bus\IEEE123Master.dss"
+        ### DAVID SOLAR ###
+        self.path = r"D:\Program Files\OpenDSS\IEEETestCases\123Bus\SolarRamp.DSS"
 
         ### DSS Simulation Variables and Setup ###
         dss.Basic.ClearAll()
@@ -163,7 +167,7 @@ class reg_env (gym.Env):
     def output_state(self):
         # print("\nBus Voltages\n")
         # print(dss.Circuit.AllBusVolts())
-        print("\nRegulator Tap Info\n")
+        #print("\nRegulator Tap Info\n")
         for reg in range(self.reg_size):
             dss.RegControls.Name(self.reg_names[reg])  # Set Active Regulator
-            print("Regulator :", self.reg_names[reg], "- Tap :", dss.RegControls.TapNumber(),)
+            #print("Regulator :", self.reg_names[reg], "- Tap :", dss.RegControls.TapNumber(),)
