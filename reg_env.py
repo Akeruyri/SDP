@@ -19,15 +19,15 @@ class reg_env (gym.Env):
 
         #DSS Loadshape
         self.cur_point = 1
-        self.max_points = 24
+        self.max_points = 10
 
         #Solve initial state
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
         dss.Text.Command("set mode=snapshot")
         dss.Text.Command("batchedit regcontrol..* enabled=false")  # Disable regulator control, taps are set manually
-        dss.Text.Command("Solve")
         dss.Solution.LoadMult(self.load_mult(self.cur_point)) #Set Initial Load Multiplier
+        dss.Text.Command("Solve")
 
         ### Action Space Setup ###
 
@@ -56,7 +56,7 @@ class reg_env (gym.Env):
 
         ### RL Parameters ###
         self.cur_step = 0
-        self.max_steps = 100
+        self.max_steps = 1000
         self.bufferSize = 2048
         self.Reward = 0
         self.done = False
@@ -69,6 +69,7 @@ class reg_env (gym.Env):
         self.voltage_violation_count = 0
         self.tracked_total_reward = 0
         self.tracked_total_steps = 0
+        self.record_voltage = True
         self.output_file = open(self.output_path,'w+')
         self.output_state(0.1, -1) #Initial State
 
@@ -97,7 +98,6 @@ class reg_env (gym.Env):
         # Run 100 Steps at current load, then increment to run at next load multiplier
         done = False
         if (self.cur_step == self.max_steps):
-            self.tracked_total_steps += 100
             print("Average Reward :", self.tracked_total_reward / (self.tracked_total_steps+1), "- Current Step:",
                   self.cur_step, "- Current Pt:", self.cur_point, "- Current Load:", self.load_mult(self.cur_point),
                   "- Total Steps :", self.tracked_total_steps)
@@ -116,6 +116,7 @@ class reg_env (gym.Env):
         self.output_state(reward, actions)
         self.tap_change_violation_count = 0  # Reset out Violation Counts
         self.voltage_violation_count = 0
+        self.tracked_total_steps += 1
         return observation, reward, done, {"Info":self.reg_tap_list}
 
     def reset(self):
@@ -178,12 +179,12 @@ class reg_env (gym.Env):
     # Step Reward Functions
     def step_reward(self):
         # Rewards can be weighted or disabled (weight = 0)
-        volt_reward_weight = 10
-        loss_reward_weight = 10
-        tap_reward_weight = 10
+        volt_reward_weight = 1
+        loss_reward_weight = 0
+        tap_reward_weight = 0
 
         # Rewards can be negative (penalties)
-        volt_violation_penalty = -100
+        volt_violation_penalty = -1
         tap_change_penalty = -10
 
         # A penalty (negative reward) should be applied for changing tap positions greater than 1.
@@ -205,7 +206,8 @@ class reg_env (gym.Env):
                     reward[i] = volt_violation_penalty
                     self.voltage_violation_count += 1
                 else: # Else use the voltage reward curve, the closer to 1.0 the better, for now a simple parabola
-                    reward[i] = -10000*(voltage[i]-0.95)*(voltage[i]-1.05)
+                    #reward[i] = -10000*(voltage[i]-0.95)*(voltage[i]-1.05)
+                    reward[i] = 0
             volt_reward = sum(reward) # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
 
         # The reward should minimize line losses in our system
@@ -222,9 +224,10 @@ class reg_env (gym.Env):
             line = "Step,Point,Load_Mult,Tap Violations,Voltage Violations,Reg Changed,Tap Changed,Reward,Regulator States,"
             for reg in self.reg_names:
                 line += reg + ','
-            line += 'Volt (pu),'
-            for i in range(len(dss.Circuit.AllNodeNames())):
-                line += dss.Circuit.AllNodeNames()[i] + ','
+            if (self.record_voltage == True):
+                line += 'Volt (pu),'
+                for i in range(len(dss.Circuit.AllNodeNames())):
+                    line += dss.Circuit.AllNodeNames()[i] + ','
             line += '\n'
         else:
             line = str(self.cur_step) + "," + str(self.cur_point) + "," + str(dss.Solution.LoadMult())
@@ -233,9 +236,10 @@ class reg_env (gym.Env):
             line += "," + str(reward) + ',,'
             for reg in self.reg_tap_list:
                 line += str(reg) + ','
-            line += ','
-            for volt in self.volt_list:
-                line += str(volt) + ','
+            if (self.record_voltage == True):
+                line += ','
+                for volt in self.volt_list:
+                    line += str(volt) + ','
             line += '\n'
         self.output_file.write(line)
     def close_output_file(self):
