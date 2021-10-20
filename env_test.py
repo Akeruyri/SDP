@@ -9,8 +9,8 @@ import gym
 
 env = reg_env()
 
-#check_env(env, warn=True)
+model = DQN(MlpPolicy, env, learning_rate=0.01, buffer_size=2048, learning_starts=0, target_update_interval=48, verbose=1)
 
-model = DQN(MlpPolicy, env, learning_rate=0.01, buffer_size=2048, learning_starts=1, target_update_interval=48, verbose=1)
+model.learn(total_timesteps=10000, log_interval=100)
 
-model.learn(total_timesteps=2000, log_interval=80)
+env.close_output_file()
