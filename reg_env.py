@@ -6,19 +6,25 @@ from gym import spaces
 
 class reg_env (gym.Env):
 
-    def __init__(self):
+    def __init__(self, p):
+
+        # Output File Name
+        print(p)
+        self.output_file_name = "utput_" + p + ".csv"
 
         ### DSS Simulation Variables and Setup ###
-        #Desktop
+        # Desktop
         self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output.csv"
+        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\O"
 
-        #Laptop
+        # Laptop
         #self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
-        #self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\Output.csv"
+        #self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\O"
 
-        #DSS Loadshape
-        self.cur_point = 1
+        self.output_path = self.output_path+ self.output_file_name
+
+        # DSS Loadshape
+        self.cur_point = 8
         self.max_points = 10
 
         #Solve initial state
@@ -57,8 +63,6 @@ class reg_env (gym.Env):
         ### RL Parameters ###
         self.cur_step = 0
         self.max_steps = 1000
-        self.bufferSize = 2048
-        self.Reward = 0
         self.done = False
         self.state = np.array(self.obs_list) # No sure about this (Starting State?)
         self.action_space = spaces.Discrete(self.action_list) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
@@ -69,20 +73,22 @@ class reg_env (gym.Env):
         self.voltage_violation_count = 0
         self.tracked_total_reward = 0
         self.tracked_total_steps = 0
-        self.record_voltage = True
-        self.output_file = open(self.output_path,'w+')
-        self.output_state(0.1, -1) #Initial State
+        self.record_voltage = False
+        self.record_tap = False
+        self.started = True
+        self.output_file = open(self.output_path, 'w+')
+        self.output_step_file(1, -1) #Initial State
 
     ### Gym Functions ###
 
-    def step(self, actions):
-        # Set for reward function comparison
+    def step(self, action):
+        # Previous tap state for comparison
         for reg in range(self.reg_size):
             self.reg_tap_list_prev[reg]= self.reg_tap_list[reg]
 
-        # Regulator tap change
-        if (actions > 0 or actions < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
-            self.switch_taps(actions)
+        # Tap change
+        if (action > 0 or action < self.action_list): #If we have an action, switch taps. No Action (action = 0) do nothing.
+            self.switch_taps(action)
 
         # Solve for current state
         self.solve()
@@ -98,22 +104,21 @@ class reg_env (gym.Env):
         # Run 100 Steps at current load, then increment to run at next load multiplier
         done = False
         if (self.cur_step == self.max_steps):
-            print("Average Reward :", self.tracked_total_reward / (self.tracked_total_steps+1), "- Current Step:",
-                  self.cur_step, "- Current Pt:", self.cur_point, "- Current Load:", self.load_mult(self.cur_point),
-                  "- Total Steps :", self.tracked_total_steps)
+            self.output_step()
             self.cur_step = 1  # Reset Solve Steps
+            done = True
             # Adjust loadshape point every # max_steps
-            if (self.cur_point == self.max_points):
-                done = True
-            else:
-                self.cur_point += 1  # Increment Load Mult Point
-                dss.Solution.LoadMult(self.load_mult(self.cur_point)) # Update Load Multiplier
+            #if (self.cur_point == self.max_points):
+                #done = True
+            #else:
+                #self.cur_point += 1  # Increment Load Mult Point
+                #dss.Solution.LoadMult(self.load_mult(self.cur_point)) # Update Load Multiplier
         else:
             self.cur_step += 1
 
         # Tracked Vars#
         self.tracked_total_reward += reward
-        self.output_state(reward, actions)
+        self.output_step_file(reward, action)
         self.tap_change_violation_count = 0  # Reset out Violation Counts
         self.voltage_violation_count = 0
         self.tracked_total_steps += 1
@@ -179,51 +184,50 @@ class reg_env (gym.Env):
     # Step Reward Functions
     def step_reward(self):
         # Rewards can be weighted or disabled (weight = 0)
-        volt_reward_weight = 1
-        loss_reward_weight = 0
-        tap_reward_weight = 0
+        tap_penalty_weight = 1
+        volt_penalty_weight = 4
+        loss_penalty_weight = 0.5
 
-        # Rewards can be negative (penalties)
-        volt_violation_penalty = -1
-        tap_change_penalty = -10
-
-        # A penalty (negative reward) should be applied for changing tap positions greater than 1.
-        tap_reward = 0
-        if (tap_reward_weight != 0):
+        # A penalty (negative penalty) should be applied for changing tap positions greater than 1.
+        tap_penalty = 0
+        if (tap_penalty_weight != 0):
             for i in range(len(self.reg_tap_list)):
                 tap_distance = abs(self.reg_tap_list_prev[i] - self.reg_tap_list[i])
                 if (tap_distance > 1): # If a tap was moved more than 1 position from the previous step (ex: tap -10 to -3), give penalty
-                    tap_reward += tap_change_penalty * tap_distance # the larger this jump the more negative the reward.
-                    self.tap_change_violation_count += 1 # Track # of tap violations -> This will usually just be 1, but when we get MultiDiscrete working this can be higher
+                    tap_penalty -= tap_distance # Track # of tap violations -> This will usually just be 1, but when we get MultiDiscrete working this can be higher
 
-        # The reward should be based on our voltage criteria, that being keep levels within 5% of nominal
-        volt_reward = 0
-        if (volt_reward_weight != 0):
+        # The penalty should be based on our voltage criteria, that being keep levels within 5% of nominal
+        volt_penalty = 0
+        if (volt_penalty_weight != 0):
             voltage = self.volt_list # Evaluate Voltages at all Buses
-            reward = np.zeros(len(voltage)) # Store a reward for each
             for i in range(len(voltage)):
                 if (voltage[i] > 1.05 or voltage[i] < 0.95): # If Voltage is outside 5% limits, give large penalty
-                    reward[i] = volt_violation_penalty
-                    self.voltage_violation_count += 1
-                else: # Else use the voltage reward curve, the closer to 1.0 the better, for now a simple parabola
-                    #reward[i] = -10000*(voltage[i]-0.95)*(voltage[i]-1.05)
-                    reward[i] = 0
-            volt_reward = sum(reward) # Add to total reward, reward from specific regulators could be weighted more than others, for instance the large one at the main sub
+                    volt_penalty -= 1
 
-        # The reward should minimize line losses in our system
-        loss_reward = 0
-        if (loss_reward_weight != 0):
-            loss_reward = -1 * np.sum(dss.Circuit.LineLosses()) # For this the system losses are inverted then summed.
+        # The penalty should minimize line losses in our system
+        loss_penalty = 0
+        if (loss_penalty_weight != 0):
+            loss_penalty = -1 * np.sum(dss.Circuit.LineLosses()) # The worse the line loses, the lower this penalty. This will be dissabled for now
 
-        total_reward = (tap_reward*tap_reward_weight) + (volt_reward*volt_reward_weight) + (loss_reward*loss_reward_weight)
-        return total_reward
+        total_penalty = (tap_penalty*tap_penalty_weight) + (volt_penalty*volt_penalty_weight) + (loss_penalty*loss_penalty_weight)
+        return total_penalty
+
+    # Output Step Function
+    def output_step( self ):
+        print("Average Reward :", self.tracked_total_reward / (self.tracked_total_steps + 1), "- Current Step:",
+            self.cur_step, "- Current Pt:", self.cur_point, "- Current Load:", self.load_mult(self.cur_point),
+            "- Total Steps :", self.tracked_total_steps)
 
     # Output File Functions
-    def output_state(self, reward, action):
-        if (reward == 0.1):
-            line = "Step,Point,Load_Mult,Tap Violations,Voltage Violations,Reg Changed,Tap Changed,Reward,Regulator States,"
-            for reg in self.reg_names:
-                line += reg + ','
+    def output_step_file(self, reward, action):
+        self.output_file = open(self.output_path,'a')
+        if (self.started == True):
+            self.started = False
+            line = "O" + self.output_file_name + '\n'
+            line += "Step,Point,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
+            if (self.record_tap == True):
+                for reg in self.reg_names:
+                    line += reg + ','
             if (self.record_voltage == True):
                 line += 'Volt (pu),'
                 for i in range(len(dss.Circuit.AllNodeNames())):
@@ -231,16 +235,15 @@ class reg_env (gym.Env):
             line += '\n'
         else:
             line = str(self.cur_step) + "," + str(self.cur_point) + "," + str(dss.Solution.LoadMult())
-            line += "," + str(self.tap_change_violation_count) + "," + str(self.voltage_violation_count)
             line += "," + self.reg_from_action(action) + "," + str(self.tap_from_action(action))
             line += "," + str(reward) + ',,'
-            for reg in self.reg_tap_list:
-                line += str(reg) + ','
+            if(self.record_tap == True):
+                for reg in self.reg_tap_list:
+                    line += str(reg) + ','
             if (self.record_voltage == True):
                 line += ','
                 for volt in self.volt_list:
                     line += str(volt) + ','
             line += '\n'
         self.output_file.write(line)
-    def close_output_file(self):
         self.output_file.close()

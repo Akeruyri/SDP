@@ -1,16 +1,31 @@
 from stable_baselines3 import DQN
 from stable_baselines3.dqn import MlpPolicy
 from stable_baselines3.common.env_checker import check_env
-
 from reg_env import reg_env
-import numpy as np
-import math
-import gym
+# RL Parameters setpoints
+total_timesteps = 40000
+learning_rate = [0.0001, 0.001, 0.01, 0.05]
+gamma = [0.999, 0.995, 0.99, 0.98]
+policy_name = 'MlpPolicy'
 
-env = reg_env()
+for i in range(len(learning_rate)):
+    for j in range(len(gamma)):
+        p = dict({
+            "l":learning_rate[i],
+            "g":gamma[j],
+            "p":policy_name,
+        })
+        def format_params(s):
+            x = s.strip("{}")
+            x = x.replace(":", "_")
+            x = x.replace(",", "_")
+            x = x.replace("'", "")
+            x = x.replace(" ", "")
+            return x
+        p_str = format_params(str(p))
 
-model = DQN(MlpPolicy, env, learning_rate=0.01, buffer_size=2048, learning_starts=0, target_update_interval=48, verbose=1)
+        env = reg_env(p_str)
 
-model.learn(total_timesteps=10000, log_interval=100)
+        model = DQN(MlpPolicy, env,gamma=p.get("g"), learning_rate=p.get("l"), buffer_size=2048,learning_starts=0, verbose=1)
 
-env.close_output_file()
+        model.learn(total_timesteps=total_timesteps)
