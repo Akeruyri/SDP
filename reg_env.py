@@ -13,6 +13,9 @@ class reg_env (gym.Env):
         self.output_file_name = "utput_" + p + ".csv"
 
         ### DSS Simulation Variables and Setup ###
+        # Solar Model
+        #self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123BusSolar\IEEE123Master.dss"
+
         # Desktop
         self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
         self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\O"
@@ -24,15 +27,16 @@ class reg_env (gym.Env):
         self.output_path = self.output_path+ self.output_file_name
 
         # DSS Loadshape
-        self.cur_point = 8
-        self.max_points = 10
+        #self.cur_point = 1
+        #self.max_points = 10
 
-        #Solve initial state
+        # Solve initial state
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
         dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("set mode=daily stepsize=1m") # Per Minute Daily mode for Solar model
         dss.Text.Command("batchedit regcontrol..* enabled=false")  # Disable regulator control, taps are set manually
-        dss.Solution.LoadMult(self.load_mult(self.cur_point)) #Set Initial Load Multiplier
+        #dss.Solution.LoadMult(self.load_mult(self.cur_point)) #Set Initial Load Multiplier, Comment out if using Daily Mode
         dss.Text.Command("Solve")
 
         ### Action Space Setup ###
@@ -62,7 +66,7 @@ class reg_env (gym.Env):
 
         ### RL Parameters ###
         self.cur_step = 0
-        self.max_steps = 1000
+        self.max_steps = 60 * 24 # Minutes per Day
         self.done = False
         self.state = np.array(self.obs_list) # No sure about this (Starting State?)
         self.action_space = spaces.Discrete(self.action_list) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
@@ -74,7 +78,7 @@ class reg_env (gym.Env):
         self.tracked_total_reward = 0
         self.tracked_total_steps = 0
         self.record_voltage = False
-        self.record_tap = False
+        self.record_tap = True
         self.started = True
         self.output_file = open(self.output_path, 'w+')
         self.output_step_file(1, -1) #Initial State
@@ -107,16 +111,19 @@ class reg_env (gym.Env):
             self.output_step()
             self.cur_step = 1  # Reset Solve Steps
             done = True
+            # If using a load function rather than the built in load shape and snapshot mode, uncomment this
             # Adjust loadshape point every # max_steps
             #if (self.cur_point == self.max_points):
-                #done = True
+            #    self.cur_point = 1 # Reset Point
+            #    done = True
             #else:
-                #self.cur_point += 1  # Increment Load Mult Point
-                #dss.Solution.LoadMult(self.load_mult(self.cur_point)) # Update Load Multiplier
+            #    self.cur_point += 1  # Increment Load Mult Point
+            #    dss.Solution.LoadMult(self.load_mult(self.cur_point)) # Update Load Multiplier
+            #    self.zero_taps() # Zero the taps
         else:
             self.cur_step += 1
 
-        # Tracked Vars#
+        # Update Tracked Vars
         self.tracked_total_reward += reward
         self.output_step_file(reward, action)
         self.tap_change_violation_count = 0  # Reset out Violation Counts
@@ -127,7 +134,8 @@ class reg_env (gym.Env):
     def reset(self):
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"') # Recompile circuit after reset
-        dss.Text.Command("set mode=snapshot")
+        #dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("set mode=daily stepsize=1m")  # Per Minute Daily mode for Solar model
         dss.Text.Command("batchedit regcontrol..* enabled=false")
         self.update_reg_state() # Get starting state
         self.update_volt_state()
@@ -158,6 +166,11 @@ class reg_env (gym.Env):
         else:
             dss.Transformers.Tap(self.pu_from_tap(tap))  # Change tap on the Active Transformer
         return
+    def zero_taps(self):
+        for reg in range(self.reg_size):
+            dss.RegControls.Name(self.reg_names[reg]) # Set Active Regulator
+            dss.Transformers.Tap(1) # Set Tap to Zero
+        return
 
     # Solve Command
     def solve(self):
@@ -169,9 +182,8 @@ class reg_env (gym.Env):
             return 0
         return self.load_func(float(index)/self.max_points)
     def load_func(self, x): #Simple Ramp function from 0 to 1 over x range 0 to 1, can be redefined to test various loadshapes
-        A1 = 1
-        A2 = 0
-        return A1*x+A2
+        #return x # Ramp
+        return -4*(x-0.5)*(x-0.5)+1 # Parabola
 
     # State Update Functions
     def update_reg_state(self): # Update Current Regulator Tap positions
@@ -184,8 +196,8 @@ class reg_env (gym.Env):
     # Step Reward Functions
     def step_reward(self):
         # Rewards can be weighted or disabled (weight = 0)
-        tap_penalty_weight = 1
-        volt_penalty_weight = 4
+        tap_penalty_weight = 0.5
+        volt_penalty_weight = 10
         loss_penalty_weight = 0.5
 
         # A penalty (negative penalty) should be applied for changing tap positions greater than 1.

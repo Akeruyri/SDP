@@ -2,12 +2,14 @@ from stable_baselines3 import DQN
 from stable_baselines3.dqn import MlpPolicy
 from stable_baselines3.common.env_checker import check_env
 from reg_env import reg_env
+
 # RL Parameters setpoints
 total_timesteps = 40000
-learning_rate = [0.0001, 0.001, 0.01, 0.05]
-gamma = [0.999, 0.995, 0.99, 0.98]
+learning_rate = [0.01]
+gamma = [0.995]
 policy_name = 'MlpPolicy'
 
+#Train
 for i in range(len(learning_rate)):
     for j in range(len(gamma)):
         p = dict({
@@ -29,3 +31,4 @@ for i in range(len(learning_rate)):
         model = DQN(MlpPolicy, env,gamma=p.get("g"), learning_rate=p.get("l"), buffer_size=2048,learning_starts=0, verbose=1)
 
         model.learn(total_timesteps=total_timesteps)
+
