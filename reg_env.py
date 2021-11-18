@@ -30,7 +30,7 @@ class reg_env (gym.Env):
         self.reg_names = dss.RegControls.AllNames()
         self.reg_size = len(self.reg_names)
         self.n_actions = 1 + (self.reg_size * 33) #1 No Action + 33 actions for each regulator * num of regulators (+-16 and 0)
-        print(self.reg_names, " : ", self.reg_size, " : ", self.n_actions)
+        print(f"{self.mode} : {self.reg_names} : {self.reg_size} : {self.n_actions}")
 
         ### Observation Space Setup ###
         self.reg_tap_list = []
