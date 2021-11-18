@@ -15,7 +15,6 @@ output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Fi
 total_timesteps = 40000
 learning_rate = [0.01]
 gamma = [0.995]
-policy_name = 'MlpPolicy'
 
 # Train
 for i in range(len(learning_rate)):
@@ -23,7 +22,8 @@ for i in range(len(learning_rate)):
         p = dict({
             "l":learning_rate[i],
             "g":gamma[j],
-            "p":policy_name,
+            "p":'MlpPolicy',
+            "mode":"daily"
         })
         def format_params(s):
             x = s.strip("{}")
