@@ -14,12 +14,9 @@ class reg_env (gym.Env):
 
         ### DSS Simulation Variables and Setup ###
         # Desktop
-        self.path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-        self.output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\O"
+        self.path = r"C:\Users\Syvar\OneDrive\Desktop\123Bus-copy\SolarRamp.dss"
 
-        # Laptop
-        #self.path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
-        #self.output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output\O"
+        self.output_path = r"C:\Users\Syvar\PycharmProjects\SDP\Example Files\Output\O"
 
         self.output_path = self.output_path+ self.output_file_name
 
@@ -27,10 +24,10 @@ class reg_env (gym.Env):
         self.cur_point = 8
         self.max_points = 10
 
-        #Solve initial state
+        # Solve initial state
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"')
-        dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("set mode=daily")
         dss.Text.Command("batchedit regcontrol..* enabled=false")  # Disable regulator control, taps are set manually
         dss.Solution.LoadMult(self.load_mult(self.cur_point)) #Set Initial Load Multiplier
         dss.Text.Command("Solve")
@@ -62,13 +59,15 @@ class reg_env (gym.Env):
 
         ### RL Parameters ###
         self.cur_step = 0
-        self.max_steps = 1000
+        self.max_steps = 24*60
         self.done = False
         self.state = np.array(self.obs_list) # No sure about this (Starting State?)
         self.action_space = spaces.Discrete(self.action_list) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
         self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32)
 
         ### Tracking Vars ###
+
+       # self.stored2 = dss.Text.Command("2MWStorage2.%stored")
         self.tap_change_violation_count = 0
         self.voltage_violation_count = 0
         self.tracked_total_reward = 0
@@ -76,12 +75,12 @@ class reg_env (gym.Env):
         self.record_voltage = False
         self.record_tap = False
         self.started = True
-        self.output_file = open(self.output_path, 'w+')
         self.output_step_file(1, -1) #Initial State
 
     ### Gym Functions ###
 
     def step(self, action):
+
         # Previous tap state for comparison
         for reg in range(self.reg_size):
             self.reg_tap_list_prev[reg]= self.reg_tap_list[reg]
@@ -103,6 +102,7 @@ class reg_env (gym.Env):
 
         # Run 100 Steps at current load, then increment to run at next load multiplier
         done = False
+
         if (self.cur_step == self.max_steps):
             self.output_step()
             self.cur_step = 1  # Reset Solve Steps
@@ -122,12 +122,19 @@ class reg_env (gym.Env):
         self.tap_change_violation_count = 0  # Reset out Violation Counts
         self.voltage_violation_count = 0
         self.tracked_total_steps += 1
+
+        if self.cur_step % 180 == 0:
+            dss.Text.Command("ActiveElement=Storage.2MWStorage1")
+            print(dss.Text.Command("%stored"))
+
         return observation, reward, done, {"Info":self.reg_tap_list}
+
+
 
     def reset(self):
         dss.Basic.ClearAll()
         dss.Text.Command('Compile "' + self.path + '"') # Recompile circuit after reset
-        dss.Text.Command("set mode=snapshot")
+        dss.Text.Command("set mode=daily stepsize=1m")
         dss.Text.Command("batchedit regcontrol..* enabled=false")
         self.update_reg_state() # Get starting state
         self.update_volt_state()
@@ -220,11 +227,12 @@ class reg_env (gym.Env):
 
     # Output File Functions
     def output_step_file(self, reward, action):
-        self.output_file = open(self.output_path,'a')
+
         if (self.started == True):
+            self.output_file = open(self.output_path, 'w+')
             self.started = False
             line = "O" + self.output_file_name + '\n'
-            line += "Step,Point,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
+            line += "Step,Daily Time Step,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
             if (self.record_tap == True):
                 for reg in self.reg_names:
                     line += reg + ','
@@ -234,7 +242,8 @@ class reg_env (gym.Env):
                     line += dss.Circuit.AllNodeNames()[i] + ','
             line += '\n'
         else:
-            line = str(self.cur_step) + "," + str(self.cur_point) + "," + str(dss.Solution.LoadMult())
+            self.output_file = open(self.output_path, 'a')
+            line = str(self.cur_step) + "," + str(dss.Solution.DblHour()) + "," + str(dss.Solution.LoadMult())
             line += "," + self.reg_from_action(action) + "," + str(self.tap_from_action(action))
             line += "," + str(reward) + ',,'
             if(self.record_tap == True):

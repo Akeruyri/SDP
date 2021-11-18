@@ -3,9 +3,9 @@ from stable_baselines3.dqn import MlpPolicy
 from stable_baselines3.common.env_checker import check_env
 from reg_env import reg_env
 # RL Parameters setpoints
-total_timesteps = 40000
-learning_rate = [0.0001, 0.001, 0.01, 0.05]
-gamma = [0.999, 0.995, 0.99, 0.98]
+total_timesteps = 5000
+learning_rate = [0.01]
+gamma = [0.99]
 policy_name = 'MlpPolicy'
 
 for i in range(len(learning_rate)):
