@@ -14,8 +14,8 @@ for ts_factor in TSBOARD_SMOOTHING:
 
 for ptx in range(1):
     # plt.subplot(1,3,ptx+1)
-    plt.plot(df["Solar"], 'r', label='_Hidden', alpha=0.1)
-    plt.plot(smooth[ptx]["Solar"], 'r',label="L 0.01,G 0.99")
+    plt.plot(df["Solar"], 'b', label='_Hidden', alpha=0.1)
+    plt.plot(smooth[ptx]["Solar"], 'b',label="L 0.01,G 0.99")
 
     # plt.title("IEEE 123 Bus Training")
     plt.grid(alpha=0.3)
