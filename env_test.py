@@ -23,7 +23,7 @@ for i in range(len(learning_rate)):
             "l":learning_rate[i],
             "g":gamma[j],
             "p":'MlpPolicy',
-            "mode":"daily"
+            "m":"daily"
         })
         def format_params(s):
             x = s.strip("{}")
@@ -34,7 +34,7 @@ for i in range(len(learning_rate)):
             return x
         p_str = format_params(str(p))
 
-        env = reg_env(p_str, mode="daily", m_file=dss_file, out=output_path)
+        env = reg_env(p_str, mode=p.get("m"), m_file=dss_file, out=output_path)
 
         model = DQN(MlpPolicy, env,gamma=p.get("g"), learning_rate=p.get("l"), buffer_size=2048,learning_starts=0, verbose=1)
 

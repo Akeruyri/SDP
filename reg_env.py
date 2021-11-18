@@ -209,7 +209,7 @@ class reg_env (gym.Env):
         if self.started == True:
             self.started = False
             line = f"O{self.output_type}\n"
-            line += "Step,Point,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
+            line += "Index,Step,Point,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
             if self.mode == "daily":
                 line += "Time,"
             if self.record_tap is True:
@@ -221,10 +221,10 @@ class reg_env (gym.Env):
                     line += f"{dss.Circuit.AllNodeNames()[i]},"
             line += '\n'
         else:
-            line = f"{str(self.cur_step)},{str(self.cur_point)},{str(dss.Solution.LoadMult())}," \
+            line = f"{str(self.tracked_total_steps)},{str(self.cur_step)},{str(self.cur_point)},{str(dss.Solution.LoadMult())}," \
                    f"{self.reg_from_action(action)},{str(self.tap_from_action(action))},{str(reward)},,"
             if self.mode == "daily":
-                line += f"{dss.Solution.DblHour()}," # MAY NEED 2 CHANGE #
+                line += f"{dss.Solution.DblHour()},"
             if self.record_tap is True:
                 for reg in self.reg_tap_list:
                     line += f"{str(reg)},"
