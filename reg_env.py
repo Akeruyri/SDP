@@ -6,17 +6,19 @@ from gym import spaces
 
 class reg_env (gym.Env):
 
-    def __init__(self, p, dss, out):
+    def __init__(self, p, mode, m_file, out):
 
         ### DSS Simulation Variables and Setup ###
         self.output_type = f"Out_{p}"
-        self.path = dss
+        self.path = m_file
         self.output_path = fr"{out}\Out_{p}.csv"
 
         # DSS Solve Mode,
         # "daily" uses OpenDSS Loadshape and solves over a daily time schedule, allows for timed elements like Solar
         # "snapshot" runs off of a user defined Loadshape, defined by the equation in load_func
-        self.mode = "snapshot"
+        self.mode = mode
+        self.cur_point = 1  # Loadshape starting point for snapshot mode
+        self.max_points = 10  # In Snapshot mode, the system will run for max_steps * max_points before fully reseting back to the first point
 
         # Solve initial state
         self.dds_reset()
@@ -47,8 +49,6 @@ class reg_env (gym.Env):
         self.obs_size = self.reg_size + self.volt_size
 
         ### RL Parameters ###
-        self.cur_point = 1  # Loadshape starting point for snapshot mode
-        self.max_points = 10 # In Snapshot mode, the system will run for max_steps * max_points before fully reseting back to the first point
         self.cur_step = 0
         self.max_steps = 0
         if self.mode == "snapshot":
