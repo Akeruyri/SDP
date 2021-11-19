@@ -5,11 +5,16 @@ from reg_env import reg_env
 
 # Paths
 # Desktop
-dss_file = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output"
+dss_m_file_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
+output_file_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output"
 # Laptop
 #path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
-#output_path = fr"C:\Users\louis\PycharmProjects\SDP\Example Files\Output"
+#output_path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\Output"
+
+# DSS Solve Mode
+#   "daily"       uses OpenDSS Loadshape and solves over a daily time schedule, allows for timed elements like Solar
+#   "snapshot"    uses user defined Mathematical Loadshape, defined by the equation in load_func
+mode = "snapshot"
 
 # RL Parameters Setpoints
 total_timesteps = 40000
@@ -19,25 +24,16 @@ gamma = [0.995]
 # Train
 for i in range(len(learning_rate)):
     for j in range(len(gamma)):
-        p = dict({
+        
+        param = dict({
+            "s":total_timesteps,
             "l":learning_rate[i],
             "g":gamma[j],
-            "p":'MlpPolicy',
-            "m":"daily"
-        })
-        def format_params(s):
-            x = s.strip("{}")
-            x = x.replace(":", "_")
-            x = x.replace(",", "_")
-            x = x.replace("'", "")
-            x = x.replace(" ", "")
-            return x
-        p_str = format_params(str(p))
-
-        env = reg_env(p_str, mode=p.get("m"), m_file=dss_file, out=output_path)
-
-        model = DQN(MlpPolicy, env,gamma=p.get("g"), learning_rate=p.get("l"), buffer_size=2048,learning_starts=0, verbose=1)
-
-        model.learn(total_timesteps=total_timesteps)
+            "p":'MlpPolicy', # Other Policies have not been tested
+            "m":mode})
+        
+        env = reg_env(param, mode=param.get("m"), m_path=dss_m_file_path, o_path=output_file_path)
+        model = DQN(MlpPolicy, env,gamma=param.get("g"), learning_rate=param.get("l"), buffer_size=2048, learning_starts=0, verbose=1)
+        model.learn(total_timesteps=param.get("s"))
 
 # Test
