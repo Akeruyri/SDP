@@ -217,7 +217,7 @@ class reg_env (gym.Env):
             if self.record[0] is True:
                 for reg in self.reg_tap_list:
                     line += f"{str(reg)},"
-            if self.record[1]] is True:
+            if self.record[1] is True:
                 line += ','
                 for volt in self.volt_list:
                     line += f"{str(volt)},"
