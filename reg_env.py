@@ -29,8 +29,8 @@ class reg_env (gym.Env):
         #Import Regulators and Generate Action List
         self.reg_names = dss.RegControls.AllNames()
         self.reg_size = len(self.reg_names)
-        self.n_actions = 1 + (self.reg_size * 33) #1 No Action + 33 actions for each regulator * num of regulators (+-16 and 0)
-        print(f"{self.mode} : {self.reg_names} : {self.reg_size} : {self.n_actions}")
+        self.n_actions = 1 + (self.reg_size * 33) # A No Action and 33 actions for each regulator * num of regulators (+-16 and 0)
+        print(f"{dss.Circuit.Name()} : {self.mode} : {self.reg_names} : {self.reg_size} : {self.n_actions}")
 
         ### Observation Space Setup ###
         self.reg_tap_list = []
@@ -57,7 +57,7 @@ class reg_env (gym.Env):
             self.max_steps = 60 * 24  # Minutes per Day
         self.done = False
         self.state = np.array(self.obs_list) # No sure about this (Starting State?)
-        self.action_space = spaces.Discrete(self.n_actions) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
+        self.action_space = spaces.Discrete(self.n_actions) # Action space defined as a discrete list of each tap change actions
         self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32)
 
         ### Tracking Vars ###
@@ -88,7 +88,7 @@ class reg_env (gym.Env):
             self.output_step_term()
             self.cur_step = 1  # Reset Solve Steps
             done = True
-            if self.mode == "snapshot": # In snapshot mode, load multiplier is manually changed
+            if self.mode == "snapshot": # In snapshot mode, manually change load multiplier
                 # Adjust loadshape point every # max_steps
                 if self.cur_point == self.max_points:
                     self.cur_point = 1 # Reset Point every max_steps * max_points
@@ -153,12 +153,13 @@ class reg_env (gym.Env):
             dss.Text.Command("set mode=daily stepsize=1m")  # Per Minute Daily Solve
             self.max_steps = 60 * 24  # Minutes per Day
 
-    # Loadshape Functions
+    # Loadshape Functions for Snapshot Mode
     def load_mult(self, index):
         if index > self.max_points:
             return 0
         return self.load_func(float(index)/self.max_points)
     def load_func(self, x): # User Defined External Loadshape Function
+        #return 0.8 # Flat
         #return x # Ramp
         return -4*(x-0.5)*(x-0.5)+1 # Parabola
 
