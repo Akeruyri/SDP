@@ -201,6 +201,11 @@ class reg_env (gym.Env):
         total_penalty = (tap_penalty*tap_penalty_weight) + (volt_penalty*volt_penalty_weight) + (loss_penalty*loss_penalty_weight)
         return total_penalty
 
+    # Mode Set for Testing
+    def set_mode(self, mode):
+        self.started = True # Create a spacer in the Output File.
+        self.mode = mode
+
     # Output Functions
     def output_step_term(self):
         print(f"Current Step:{self.cur_step} - Current Pt:{self.cur_point} - Current Load:{str(dss.Solution.LoadMult())} - Total Steps :{self.tracked_total_steps}")
