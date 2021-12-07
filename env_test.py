@@ -3,17 +3,13 @@ from stable_baselines3.dqn import MlpPolicy
 from reg_env import reg_env
 
 # Paths
-# Desktop
-dss_file = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output"
-# Laptop
-#path = r"C:\Users\louis\PycharmProjects\SDP\Example Files\123Bus\IEEE123Master.dss"
-#output_path = fr"C:\Users\louis\PycharmProjects\SDP\Example Files\Output"
+dss_file = r"repository\Example Files\123Bus\IEEE123Master.dss"
+output_path = r"repository\Example Files\Output"
 
 # RL Parameter Setpoints
-total_timesteps = 40000
+total_timesteps = 400000
 learning_rate = [0.01]
-gamma = [0.995]
+gamma = [0.99]
 
 test_env = True
 
@@ -23,7 +19,7 @@ for i in range(len(learning_rate)):
             "l":learning_rate[i],
             "g":gamma[j],
             "p":'MlpPolicy',
-            "m":"daily",
+            "m":"snapshot",
             "s":total_timesteps
         })
         def format_params(s):
@@ -36,7 +32,6 @@ for i in range(len(learning_rate)):
         p_str = format_params(str(p))
 
         # Train Agent
-
         env = reg_env(p_str, mode=p.get("m"), m_file=dss_file, out=output_path)
         model = DQN(MlpPolicy, env,gamma=p.get("g"), learning_rate=p.get("l"), buffer_size=2048,learning_starts=0, verbose=1)
 

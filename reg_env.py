@@ -13,40 +13,34 @@ class reg_env (gym.Env):
         self.path = m_file
         self.output_path = fr"{out}\Out_{p}.csv"
 
-        # DSS Solve Mode,
+        # DSS Solve Mode
         # "daily" uses OpenDSS Loadshape and solves over a daily time schedule, allows for timed elements like Solar
         # "snapshot" runs off of a user defined Loadshape, defined by the equation in load_func
         self.mode = mode
         self.cur_point = 1  # Loadshape starting point for snapshot mode
         self.max_points = 10  # In Snapshot mode, the system will run for max_steps * max_points before fully reseting back to the first point
-
-        # Solve initial state
         self.dds_reset()
-        self.solve()
+        self.solve() # Solve initial state
 
         ### Action Space Setup ###
-
-        #Import Regulators and Generate Action List
-        self.reg_names = dss.RegControls.AllNames()
+        self.reg_names = dss.RegControls.AllNames() # Import Regulators Generate Action List
         self.reg_size = len(self.reg_names)
         self.n_actions = 1 + (self.reg_size * 33) #1 No Action + 33 actions for each regulator * num of regulators (+-16 and 0)
+        self.action_space = spaces.Discrete(self.n_actions)  # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
         print(f"{self.mode} : {self.reg_names} : {self.reg_size} : {self.n_actions}")
 
         ### Observation Space Setup ###
         self.reg_tap_list = []
         self.reg_tap_list_prev = []
         for reg in range(self.reg_size):
-            dss.RegControls.Name(self.reg_names[reg]) # Set Active Reg to pull tap information
-            self.reg_tap_list.append(dss.RegControls.TapNumber()) # Append Tap
+            dss.RegControls.Name(self.reg_names[reg])
+            self.reg_tap_list.append(dss.RegControls.TapNumber())
             self.reg_tap_list_prev.append(0)
-        
-        # Bus Voltages. For now we will simply import all bus voltages in per unit
         self.volt_list = dss.Circuit.AllBusMagPu()
         self.volt_size = len(self.volt_list)
-
-        # Concatenate both list
         self.obs_list = np.append(self.reg_tap_list, self.volt_list) # Observe current sate of regulators and system voltages
         self.obs_size = self.reg_size + self.volt_size
+        self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32)
 
         ### RL Parameters ###
         self.cur_step = 0
@@ -56,9 +50,7 @@ class reg_env (gym.Env):
         elif self.mode == "daily":
             self.max_steps = 60 * 24  # Minutes per Day
         self.done = False
-        self.state = np.array(self.obs_list) # No sure about this (Starting State?)
-        self.action_space = spaces.Discrete(self.n_actions) # Action space defined as a discrete list of each tap change actions, 1 Action per step for now
-        self.observation_space = spaces.Box(low=-16.0, high=16, shape=(self.obs_size,), dtype=np.float32)
+        self.state = np.array(self.obs_list)
 
         ### Tracking Vars ###
         self.tap_change_violation_count = 0
@@ -149,6 +141,7 @@ class reg_env (gym.Env):
             dss.Text.Command("set mode=snapshot")
             dss.Solution.LoadMult(self.load_mult(self.cur_point))  # Set Initial Load Multiplier
             self.max_steps = 1000  # 1000 steps per load mult point
+            self.cur_point = 1
         elif self.mode == "daily":
             dss.Text.Command("set mode=daily stepsize=1m")  # Per Minute Daily Solve
             self.max_steps = 60 * 24  # Minutes per Day
@@ -213,8 +206,7 @@ class reg_env (gym.Env):
         self.output_file = open(self.output_path,'a')
         if self.started == True:
             self.started = False
-            line = f"O{self.output_type}\n"
-            line += "Index,Step,Point,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
+            line = "Index,Step,Point,Load_Mult,Reg Changed,Tap Changed,Reward,Regulator States,"
             if self.mode == "daily":
                 line += "Time,"
             if self.record_tap is True:
