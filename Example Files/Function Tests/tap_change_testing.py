@@ -5,8 +5,8 @@ import numpy as np
 rand.seed()
 
 # Desktop Path
-path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\123Bus\IEEE123Master.dss"
-output_path = r"C:\Users\louis\Desktop\SeniorDesignProject\repository\Example Files\Output\Output_Tap_Test.csv"
+path = r"/Example Files/123Bus/IEEE123Master.dss"
+output_path = r"/Example Files/Output/Output_Tap_Test.csv"
 
 # Solve initial state
 dss.Basic.ClearAll()
